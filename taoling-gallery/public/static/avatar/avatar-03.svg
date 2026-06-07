@@ -1,0 +1,23 @@
+<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="18" y1="22" x2="140" y2="138" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E7F7FF"/>
+      <stop offset="1" stop-color="#FFE1EC"/>
+    </linearGradient>
+    <linearGradient id="hair" x1="46" y1="28" x2="116" y2="122" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6A4DBD"/>
+      <stop offset="1" stop-color="#51395D"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="76" fill="url(#bg)"/>
+  <circle cx="80" cy="80" r="72" fill="none" stroke="white" stroke-width="8" opacity=".85"/>
+  <path d="M40 78c0-31 18-50 40-50 25 0 42 19 42 50 0 24-8 40-22 51H60c-14-11-20-27-20-51Z" fill="url(#hair)"/>
+  <circle cx="80" cy="84" r="34" fill="#F8D6C6"/>
+  <path d="M47 76c18-4 31-15 39-32 12 14 24 22 42 27-7-27-26-45-48-45-24 0-43 20-33 50Z" fill="url(#hair)"/>
+  <circle cx="66" cy="86" r="5" fill="#4B293B"/>
+  <circle cx="96" cy="86" r="5" fill="#4B293B"/>
+  <path d="M70 103c7 6 20 6 28 0" fill="none" stroke="#8B3F63" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="58" cy="97" r="7" fill="#F98AAA" opacity=".5"/>
+  <circle cx="106" cy="97" r="7" fill="#F98AAA" opacity=".5"/>
+  <path d="M40 132c16-24 61-29 82 0-23 18-60 20-82 0Z" fill="#8B6EEA" opacity=".8"/>
+</svg>

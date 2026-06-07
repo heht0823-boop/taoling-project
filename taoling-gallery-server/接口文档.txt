@@ -1,0 +1,1658 @@
+一、接口模块总览
+
+你的项目建议分成 9 个接口模块：
+
+1. Auth 认证模块
+2. User 用户个人中心模块
+3. Public Image 前台图库模块
+4. Favorite 收藏模块
+5. Download 下载记录模块
+6. AI Chat 桃灵助手模块
+7. Admin Dashboard 管理首页模块
+8. Admin Content 图片 / 分类 / 标签管理模块
+9. Admin User 用户管理模块
+
+不需要设计的接口：
+
+关注接口
+粉丝接口
+作品集接口
+用户发布图片接口
+用户作品管理接口
+PRO 会员接口
+系统设置接口
+内容举报接口
+用户关注创作者接口
+创作者计划接口
+二、通用接口规范
+1. 基础路径
+/api
+2. 通用返回格式
+{
+  "code": 200,
+  "message": "success",
+  "data": {}
+}
+
+列表分页返回：
+
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "list": [],
+    "pagination": {
+      "page": 1,
+      "pageSize": 12,
+      "total": 100
+    }
+  }
+}
+3. 权限标识
+
+请求头：
+
+Authorization: Bearer jwt_token
+
+权限类型：
+
+游客：不传 token
+普通用户：token 中 role = user
+管理员：token 中 role = admin
+三、Auth 认证模块
+
+认证模块对应页面：
+
+登录 / 注册页
+
+对应数据库：
+
+users
+user_stats
+admin_logs
+1. 注册
+POST /api/auth/register
+
+权限：
+
+游客可访问
+
+请求参数：
+
+{
+  "username": "hetao",
+  "email": "test@example.com",
+  "password": "123456"
+}
+
+后端逻辑：
+
+1. 校验 username 是否唯一
+2. 校验 email 是否唯一
+3. 密码加密生成 password_hash
+4. 写入 users，默认 role = user，status = normal
+5. 初始化 user_stats
+6. 写入 admin_logs：USER_REGISTER
+
+返回：
+
+{
+  "id": 1,
+  "username": "hetao",
+  "email": "test@example.com",
+  "role": "user"
+}
+2. 登录
+POST /api/auth/login
+
+权限：
+
+游客可访问
+
+请求参数：
+
+{
+  "account": "hetao",
+  "password": "123456"
+}
+
+说明：
+
+account 可以是 username 或 email
+
+后端逻辑：
+
+1. 查询 users
+2. 判断 deleted_at IS NULL
+3. 判断 status = normal
+4. 校验密码
+5. 更新 last_login_at
+6. 查询 user_stats
+7. 生成 token
+8. 写入 admin_logs：USER_LOGIN
+
+返回：
+
+{
+  "token": "jwt_token",
+  "user": {
+    "id": 1,
+    "username": "hetao",
+    "email": "test@example.com",
+    "role": "admin",
+    "status": "normal",
+    "avatar_url": "https://xxx.com/avatar.png",
+    "last_login_at": "2026-06-04 20:00:00",
+    "created_at": "2026-06-01 10:00:00"
+  },
+  "stats": {
+    "favorite_count": 12,
+    "download_count": 8,
+    "view_count": 36,
+    "ai_conversation_count": 5,
+    "ai_message_count": 42
+  }
+}
+3. 退出登录
+POST /api/auth/logout
+
+权限：
+
+登录用户
+
+说明：
+
+JWT 本身无状态，前端删除 token 即可。
+后端只负责写入 admin_logs：USER_LOGOUT。
+4. 获取当前登录用户
+GET /api/auth/me
+
+权限：
+
+登录用户
+
+用途：
+
+刷新页面后恢复用户信息
+判断当前用户是 admin 还是 user
+
+返回：
+
+{
+  "user": {
+    "id": 1,
+    "username": "hetao",
+    "email": "test@example.com",
+    "role": "admin",
+    "status": "normal",
+    "avatar_url": "https://xxx.com/avatar.png"
+  },
+  "stats": {
+    "favorite_count": 12,
+    "download_count": 8,
+    "view_count": 36,
+    "ai_conversation_count": 5,
+    "ai_message_count": 42
+  }
+}
+四、User 用户个人中心模块
+
+对应页面：
+
+我的页面
+
+注意：
+
+界面上的关注者、作品数、PRO 用户、创作者等功能不做。
+个人中心只展示：收藏数、下载数、浏览数、AI 会话数等数据库真实存在的数据。
+
+对应数据库：
+
+users
+user_stats
+favorites
+download_records
+1. 获取个人中心信息
+GET /api/user/profile
+
+权限：
+
+登录用户
+
+返回：
+
+{
+  "user": {
+    "id": 1,
+    "username": "hetao",
+    "email": "test@example.com",
+    "role": "user",
+    "avatar_url": "https://xxx.com/avatar.png",
+    "created_at": "2026-06-01 10:00:00"
+  },
+  "stats": {
+    "favorite_count": 12,
+    "download_count": 8,
+    "view_count": 36,
+    "ai_conversation_count": 5,
+    "ai_message_count": 42
+  }
+}
+2. 修改个人资料
+PATCH /api/user/profile
+
+权限：
+
+登录用户
+
+请求参数：
+
+{
+  "username": "newName",
+  "email": "new@example.com",
+  "avatar_url": "https://xxx.com/avatar.png"
+}
+
+涉及字段：
+
+users.username
+users.email
+users.avatar_url
+users.updated_at
+
+后端逻辑：
+
+1. 校验 username / email 是否重复
+2. 更新 users
+3. 写入 admin_logs：USER_PROFILE_UPDATE
+3. 修改密码
+PATCH /api/user/password
+
+权限：
+
+登录用户
+
+请求参数：
+
+{
+  "old_password": "123456",
+  "new_password": "abcdef"
+}
+
+涉及字段：
+
+users.password_hash
+五、Public Image 前台图库模块
+
+对应页面：
+
+首页
+图库页
+图片详情页
+
+对应数据库：
+
+images
+categories
+tags
+image_tags
+favorites
+image_view_records
+user_stats
+admin_logs
+1. 获取前台图片列表
+GET /api/images
+
+权限：
+
+游客 / 登录用户都可以访问
+
+查询参数：
+
+page=1
+pageSize=12
+keyword=少女
+category_id=1
+tag_id=2
+aspect_ratio=1:1
+sort=latest | hot | downloads | favorites
+
+说明：
+
+只返回公开图片：
+status = public
+deleted_at IS NULL
+
+排序规则：
+
+latest：按 created_at DESC
+hot：按 view_count DESC
+downloads：按 download_count DESC
+favorites：按 favorite_count DESC
+默认：display_weight DESC, created_at DESC
+
+返回字段：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "title": "霓虹幻影少女",
+      "description": "AI 生成的赛博风少女图片",
+      "image_url": "https://xxx.com/image.jpg",
+      "thumbnail_url": "https://xxx.com/thumb.jpg",
+      "category": {
+        "id": 1,
+        "name": "人物肖像"
+      },
+      "tags": [
+        {
+          "id": 1,
+          "name": "赛博朋克",
+          "color": "#ff8bb3"
+        }
+      ],
+      "aspect_ratio": "1:1",
+      "view_count": 1200,
+      "download_count": 342,
+      "favorite_count": 856,
+      "is_favorited": false,
+      "created_at": "2026-06-01 10:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 12,
+    "total": 100
+  }
+}
+
+说明：
+
+如果用户已登录，可以返回 is_favorited。
+如果游客访问，is_favorited 固定 false。
+2. 获取图片详情
+GET /api/images/:id
+
+权限：
+
+游客 / 登录用户都可以访问
+
+查询规则：
+
+status = public
+deleted_at IS NULL
+
+返回：
+
+{
+  "id": 1,
+  "title": "水晶岛屿概念图",
+  "description": "这是一组探索素材质与光影互动的概念设计。",
+  "image_url": "https://xxx.com/image.jpg",
+  "thumbnail_url": "https://xxx.com/thumb.jpg",
+  "aspect_ratio": "16:9",
+  "category": {
+    "id": 1,
+    "name": "自然风景"
+  },
+  "tags": [
+    {
+      "id": 1,
+      "name": "3D 渲染",
+      "color": "#ffc7d8"
+    }
+  ],
+  "view_count": 12000,
+  "download_count": 892,
+  "favorite_count": 3204,
+  "is_favorited": false,
+  "created_at": "2026-06-01 10:00:00"
+}
+3. 记录图片浏览
+POST /api/images/:id/view
+
+权限：
+
+游客 / 登录用户都可以访问
+
+请求参数：
+
+{
+  "visitor_id": "guest_uuid_123"
+}
+
+后端逻辑：
+
+1. 校验图片存在
+2. 校验图片 status = public
+3. 写入 image_view_records
+4. images.view_count + 1
+5. 如果是登录用户，user_stats.view_count + 1
+6. 可选写入 admin_logs：IMAGE_VIEW
+
+为什么单独设计这个接口：
+
+GET /api/images/:id 只负责获取详情。
+POST /api/images/:id/view 负责产生浏览记录。
+这样更符合接口规范，避免 GET 接口产生写操作。
+4. 获取前台分类列表
+GET /api/categories
+
+权限：
+
+游客 / 登录用户都可以访问
+
+查询规则：
+
+status = normal
+deleted_at IS NULL
+
+返回：
+
+[
+  {
+    "id": 1,
+    "name": "自然风景",
+    "sort_order": 100
+  },
+  {
+    "id": 2,
+    "name": "人物肖像",
+    "sort_order": 90
+  }
+]
+5. 获取前台标签列表
+GET /api/tags
+
+权限：
+
+游客 / 登录用户都可以访问
+
+查询参数：
+
+keyword=赛博
+limit=20
+
+查询规则：
+
+status = normal
+deleted_at IS NULL
+
+返回：
+
+[
+  {
+    "id": 1,
+    "name": "赛博朋克",
+    "color": "#ff8bb3",
+    "usage_count": 8200
+  }
+]
+6. 获取相关推荐图片
+GET /api/images/:id/related
+
+权限：
+
+游客 / 登录用户都可以访问
+
+用途：
+
+图片详情页下面的“探索更多灵感”
+
+查询逻辑：
+
+1. 优先根据当前图片的 category_id 查询
+2. 再根据当前图片 tags 查询
+3. 只返回 status = public 且 deleted_at IS NULL 的图片
+4. 排除当前图片
+
+查询参数：
+
+limit=6
+六、Favorite 收藏模块
+
+对应页面：
+
+图片详情页收藏按钮
+我的收藏
+
+对应数据库：
+
+favorites
+images
+user_stats
+admin_logs
+1. 收藏图片
+POST /api/images/:id/favorite
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+1. 校验用户已登录
+2. 校验图片存在
+3. 校验图片 status = public
+4. 判断是否已收藏
+5. 插入 favorites
+6. images.favorite_count + 1
+7. user_stats.favorite_count + 1
+8. 写入 admin_logs：FAVORITE_CREATE
+
+返回：
+
+{
+  "image_id": 1,
+  "is_favorited": true,
+  "favorite_count": 321
+}
+2. 取消收藏
+DELETE /api/images/:id/favorite
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+1. 删除 favorites 关系
+2. images.favorite_count - 1
+3. user_stats.favorite_count - 1
+4. 写入 admin_logs：FAVORITE_CANCEL
+
+返回：
+
+{
+  "image_id": 1,
+  "is_favorited": false,
+  "favorite_count": 320
+}
+3. 获取我的收藏列表
+GET /api/user/favorites
+
+权限：
+
+登录用户
+
+查询参数：
+
+page=1
+pageSize=12
+
+返回：
+
+{
+  "list": [
+    {
+      "favorite_id": 1,
+      "created_at": "2026-06-04 10:00:00",
+      "image": {
+        "id": 1,
+        "title": "精灵低语",
+        "thumbnail_url": "https://xxx.com/thumb.jpg",
+        "image_url": "https://xxx.com/image.jpg",
+        "view_count": 3400,
+        "download_count": 1200,
+        "favorite_count": 856
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 12,
+    "total": 10
+  }
+}
+七、Download 下载模块
+
+对应页面：
+
+图片详情页下载按钮
+我的下载记录
+
+对应数据库：
+
+download_records
+images
+user_stats
+admin_logs
+1. 下载图片
+POST /api/images/:id/download
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+1. 校验用户已登录
+2. 校验图片存在
+3. 校验图片 status = public
+4. 新增 download_records
+5. images.download_count + 1
+6. user_stats.download_count + 1
+7. 写入 admin_logs：DOWNLOAD_IMAGE
+8. 返回 image_url
+
+返回：
+
+{
+  "image_id": 1,
+  "download_url": "https://xxx.com/image.jpg",
+  "download_count": 893
+}
+2. 获取我的下载记录
+GET /api/user/downloads
+
+权限：
+
+登录用户
+
+查询参数：
+
+page=1
+pageSize=12
+
+查询规则：
+
+download_records.user_id = 当前用户
+download_records.deleted_at IS NULL
+
+返回：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "image_id": 10,
+      "image_title": "水晶岛屿概念图",
+      "image_url": "https://xxx.com/image.jpg",
+      "created_at": "2026-06-04 10:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 12,
+    "total": 8
+  }
+}
+3. 删除单条下载记录
+DELETE /api/user/downloads/:id
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+UPDATE download_records
+SET deleted_at = NOW()
+WHERE id = ?
+AND user_id = 当前用户
+AND deleted_at IS NULL
+
+注意：
+
+不减少 images.download_count
+不减少 user_stats.download_count
+4. 清空下载记录
+DELETE /api/user/downloads
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+当前用户所有 download_records.deleted_at = NOW()
+
+注意：
+
+只清空个人展示记录，不影响历史累计下载数。
+八、AI Chat 桃灵助手模块
+
+对应页面：
+
+桃灵助手页面
+
+对应数据库：
+
+ai_conversations
+ai_messages
+images
+tags
+user_stats
+admin_logs
+1. 发送 AI 消息
+POST /api/ai/chat
+
+权限：
+
+登录用户
+
+请求参数：
+
+{
+  "conversation_id": 1,
+  "message": "帮我找一张治愈风的水彩插画，要有小猫"
+}
+
+说明：
+
+conversation_id 可选。
+如果不传，后端自动创建新会话。
+
+后端逻辑：
+
+1. 校验登录
+2. 如果没有 conversation_id，创建 ai_conversations
+3. 保存用户消息 role = user
+4. 调用大模型
+5. 根据 AI 意图查询 images / tags
+6. 保存 AI 回复 role = assistant
+7. 保存 recommended_tags / recommended_image_ids
+8. 如果是新会话，AI 自动生成 title
+9. 更新 user_stats.ai_message_count
+10. 如果是新会话，更新 user_stats.ai_conversation_count
+11. 写入 admin_logs：
+    AI_CONVERSATION_CREATE
+    AI_MESSAGE_SEND
+    AI_MESSAGE_REPLY
+    AI_TITLE_GENERATE
+
+返回：
+
+{
+  "conversation_id": 1,
+  "title": "治愈风小猫插画",
+  "reply": "我帮你找到了一些治愈风、水彩、小猫相关的灵感图片。",
+  "recommended_tags": ["治愈系", "水彩风", "小猫"],
+  "recommended_images": [
+    {
+      "id": 1,
+      "title": "春天小猫水彩插画",
+      "thumbnail_url": "https://xxx.com/thumb.jpg",
+      "image_url": "https://xxx.com/image.jpg"
+    }
+  ]
+}
+2. 获取 AI 会话列表
+GET /api/ai/conversations
+
+权限：
+
+登录用户
+
+查询规则：
+
+user_id = 当前用户
+deleted_at IS NULL
+ORDER BY updated_at DESC
+
+返回：
+
+[
+  {
+    "id": 1,
+    "title": "治愈风小猫插画",
+    "created_at": "2026-06-04 10:00:00",
+    "updated_at": "2026-06-04 10:05:00"
+  }
+]
+3. 获取 AI 会话消息
+GET /api/ai/conversations/:id/messages
+
+权限：
+
+登录用户
+
+查询规则：
+
+conversation_id = 当前会话
+user_id = 当前用户
+deleted_at IS NULL
+ORDER BY created_at ASC
+
+返回：
+
+[
+  {
+    "id": 1,
+    "role": "user",
+    "content": "帮我找治愈风插画",
+    "created_at": "2026-06-04 10:00:00"
+  },
+  {
+    "id": 2,
+    "role": "assistant",
+    "content": "我帮你找到了一些图片。",
+    "recommended_tags": ["治愈系"],
+    "recommended_image_ids": [1, 2, 3],
+    "created_at": "2026-06-04 10:00:05"
+  }
+]
+4. 删除单个 AI 会话
+DELETE /api/ai/conversations/:id
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+1. ai_conversations.deleted_at = NOW()
+2. ai_messages.deleted_at = NOW()
+3. 写入 admin_logs：AI_CONVERSATION_DELETE
+5. 清空 AI 会话
+DELETE /api/ai/conversations
+
+权限：
+
+登录用户
+
+后端逻辑：
+
+当前用户所有 ai_conversations 和 ai_messages 软删除
+九、Admin Dashboard 管理首页模块
+
+对应页面：
+
+管理中心首页
+
+对应数据库：
+
+images
+users
+ai_conversations
+admin_logs
+1. 获取管理员首页统计
+GET /api/admin/dashboard/stats
+
+权限：
+
+管理员
+
+返回：
+
+{
+  "image_count": 24592,
+  "user_count": 8103,
+  "total_view_count": 360000,
+  "total_download_count": 142800,
+  "total_favorite_count": 56012,
+  "ai_conversation_count": 520
+}
+
+统计来源：
+
+image_count：images 中未删除且 status != deleted 的数量
+user_count：users 中 deleted_at IS NULL 的数量
+total_view_count：SUM(images.view_count)
+total_download_count：SUM(images.download_count)
+total_favorite_count：SUM(images.favorite_count)
+ai_conversation_count：ai_conversations 中 deleted_at IS NULL 的数量
+2. 获取最近动态
+GET /api/admin/logs
+
+权限：
+
+管理员
+
+查询参数：
+
+page=1
+pageSize=10
+action_type=IMAGE_UPLOAD
+target_type=image
+
+返回：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "actor_id": 1,
+      "actor_name": "桃子酱",
+      "actor_role": "admin",
+      "action_type": "IMAGE_UPLOAD",
+      "target_type": "image",
+      "target_id": 10,
+      "title": "上传图片",
+      "content": "桃子酱上传了 5 张新图片",
+      "ip_address": "127.0.0.1",
+      "created_at": "2026-06-04 10:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 10,
+    "total": 100
+  }
+}
+十、Admin Image 图片管理模块
+
+对应页面：
+
+上传图片页面
+图片管理页面
+
+对应数据库：
+
+images
+categories
+tags
+image_tags
+admin_logs
+1. 上传图片文件
+POST /api/admin/files/images
+
+权限：
+
+管理员
+
+请求类型：
+
+multipart/form-data
+
+请求字段：
+
+file
+
+后端逻辑：
+
+1. 校验管理员权限
+2. 校验文件类型：jpg / png / webp
+3. 校验文件大小，例如最大 20MB
+4. 上传到本地或对象存储
+5. 生成 image_url
+6. 可选生成 thumbnail_url
+7. 返回图片地址
+
+返回：
+
+{
+  "image_url": "https://xxx.com/images/abc.jpg",
+  "thumbnail_url": "https://xxx.com/images/abc_thumb.jpg"
+}
+
+说明：
+
+这个接口只负责上传文件，不写 images 表。
+真正创建图片记录由 POST /api/admin/images 完成。
+2. 创建图片
+POST /api/admin/images
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "title": "梦幻水彩抽象背景",
+  "description": "粉色和紫色渐变的抽象 AI 图片",
+  "image_url": "https://xxx.com/image.jpg",
+  "thumbnail_url": "https://xxx.com/thumb.jpg",
+  "category_id": 1,
+  "aspect_ratio": "16:9",
+  "status": "public",
+  "display_weight": 80,
+  "tag_ids": [1, 2, 3]
+}
+
+后端逻辑：
+
+1. 写入 images
+2. 写入 image_tags
+3. 更新 tags.usage_count
+4. 写入 admin_logs：IMAGE_UPLOAD
+3. 获取管理员图片列表
+GET /api/admin/images
+
+权限：
+
+管理员
+
+查询参数：
+
+page=1
+pageSize=12
+keyword=水彩
+category_id=1
+status=public | private | draft | deleted
+tag_id=1
+sort=latest | views | downloads | favorites | weight
+
+说明：
+
+管理员可以查看 public / private / draft / deleted。
+默认不查回收站：
+deleted_at IS NULL
+如果 status = deleted，则查询回收站。
+
+返回：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "title": "梦幻水彩抽象背景",
+      "thumbnail_url": "https://xxx.com/thumb.jpg",
+      "category": {
+        "id": 1,
+        "name": "自然风景"
+      },
+      "tags": [
+        {
+          "id": 1,
+          "name": "抽象"
+        }
+      ],
+      "status": "public",
+      "display_weight": 80,
+      "view_count": 1200,
+      "download_count": 340,
+      "favorite_count": 856,
+      "created_at": "2026-06-01 10:00:00",
+      "deleted_at": null
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 12,
+    "total": 100
+  }
+}
+4. 获取管理员图片详情
+GET /api/admin/images/:id
+
+权限：
+
+管理员
+
+用途：
+
+编辑图片时回显详情
+
+返回完整字段：
+
+{
+  "id": 1,
+  "title": "梦幻水彩抽象背景",
+  "description": "图片描述",
+  "image_url": "https://xxx.com/image.jpg",
+  "thumbnail_url": "https://xxx.com/thumb.jpg",
+  "category_id": 1,
+  "aspect_ratio": "16:9",
+  "status": "public",
+  "display_weight": 80,
+  "tag_ids": [1, 2, 3],
+  "view_count": 1200,
+  "download_count": 340,
+  "favorite_count": 856,
+  "created_at": "2026-06-01 10:00:00",
+  "updated_at": "2026-06-04 10:00:00",
+  "deleted_at": null
+}
+5. 更新图片
+PATCH /api/admin/images/:id
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "title": "新的图片标题",
+  "description": "新的图片描述",
+  "image_url": "https://xxx.com/new.jpg",
+  "thumbnail_url": "https://xxx.com/new_thumb.jpg",
+  "category_id": 2,
+  "aspect_ratio": "1:1",
+  "status": "private",
+  "display_weight": 60,
+  "tag_ids": [2, 4, 5]
+}
+
+后端逻辑：
+
+1. 更新 images
+2. 对比旧 tag_ids 和新 tag_ids
+3. 新增缺失的 image_tags
+4. 删除不再需要的 image_tags
+5. 对 tags.usage_count 做增减
+6. 写入 admin_logs：IMAGE_UPDATE
+
+说明：
+
+修改图片状态 public / private / draft 也走这个接口。
+不需要单独设计一个“修改状态接口”，避免冗余。
+6. 删除图片
+DELETE /api/admin/images/:id
+
+权限：
+
+管理员
+
+说明：
+
+软删除，不物理删除。
+
+后端逻辑：
+
+UPDATE images
+SET status = 'deleted',
+    deleted_at = NOW()
+WHERE id = ?
+
+写入日志：
+
+admin_logs：IMAGE_DELETE
+7. 恢复图片
+PATCH /api/admin/images/:id/restore
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "status": "draft"
+}
+
+说明：
+
+恢复后建议默认变成 draft，避免误公开。
+
+后端逻辑：
+
+UPDATE images
+SET status = 'draft',
+    deleted_at = NULL
+WHERE id = ?
+
+写入日志：
+
+admin_logs：IMAGE_RESTORE
+十一、Admin Category 分类管理模块
+
+对应页面：
+
+分类与标签管理
+上传图片中的分类选择
+图片筛选中的分类选择
+
+对应数据库：
+
+categories
+images
+admin_logs
+1. 获取管理员分类列表
+GET /api/admin/categories
+
+权限：
+
+管理员
+
+查询参数：
+
+keyword=自然
+status=normal | disabled
+page=1
+pageSize=20
+
+返回：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "name": "自然风景",
+      "sort_order": 100,
+      "status": "normal",
+      "image_count": 1204,
+      "created_at": "2026-06-01 10:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 10
+  }
+}
+
+说明：
+
+image_count 可以通过 images 表统计。
+2. 新增分类
+POST /api/admin/categories
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "name": "自然风景",
+  "sort_order": 100,
+  "status": "normal"
+}
+
+后端逻辑：
+
+1. 校验 name 唯一
+2. 写入 categories
+3. 写入 admin_logs：CATEGORY_CREATE
+3. 更新分类
+PATCH /api/admin/categories/:id
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "name": "自然风景",
+  "sort_order": 80,
+  "status": "disabled"
+}
+
+后端逻辑：
+
+1. 更新 categories
+2. 写入 admin_logs：CATEGORY_UPDATE
+4. 删除分类
+DELETE /api/admin/categories/:id
+
+权限：
+
+管理员
+
+说明：
+
+软删除。
+
+建议规则：
+
+如果该分类下还有图片，不建议直接删除。
+可以先返回错误，让管理员转移图片分类后再删除。
+
+写入日志：
+
+admin_logs：CATEGORY_DELETE
+十二、Admin Tag 标签管理模块
+
+对应页面：
+
+分类与标签管理
+上传图片中的标签输入
+图库筛选标签
+AI 推荐标签
+
+对应数据库：
+
+tags
+image_tags
+admin_logs
+1. 获取管理员标签列表
+GET /api/admin/tags
+
+权限：
+
+管理员
+
+查询参数：
+
+keyword=赛博
+status=normal | disabled
+page=1
+pageSize=20
+
+返回：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "name": "赛博朋克",
+      "color": "#ff8bb3",
+      "usage_count": 8200,
+      "status": "normal",
+      "created_at": "2026-06-01 10:00:00"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 30
+  }
+}
+2. 新增标签
+POST /api/admin/tags
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "name": "赛博朋克",
+  "color": "#ff8bb3",
+  "status": "normal"
+}
+
+后端逻辑：
+
+1. 校验 name 唯一
+2. 写入 tags
+3. 写入 admin_logs：TAG_CREATE
+3. 更新标签
+PATCH /api/admin/tags/:id
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "name": "赛博朋克",
+  "color": "#ff8bb3",
+  "status": "disabled"
+}
+
+后端逻辑：
+
+1. 更新 tags
+2. 写入 admin_logs：TAG_UPDATE
+4. 删除标签
+DELETE /api/admin/tags/:id
+
+权限：
+
+管理员
+
+说明：
+
+软删除。
+
+建议规则：
+
+如果标签正在被图片使用，可以禁止删除，或仅禁用。
+不建议物理删除。
+
+写入日志：
+
+admin_logs：TAG_DELETE
+十三、Admin User 用户管理模块
+
+对应页面：
+
+用户管理页面
+
+注意：
+
+界面里的作品数、获赞、关注者等不要做。
+你的系统没有用户发布作品，也没有点赞和关注。
+用户管理只展示数据库真实存在的用户信息和 user_stats 统计。
+
+对应数据库：
+
+users
+user_stats
+admin_logs
+1. 获取用户列表
+GET /api/admin/users
+
+权限：
+
+管理员
+
+查询参数：
+
+page=1
+pageSize=12
+keyword=hetao
+role=user | admin
+status=normal | disabled
+
+返回：
+
+{
+  "list": [
+    {
+      "id": 1,
+      "username": "hetao",
+      "email": "test@example.com",
+      "role": "user",
+      "status": "normal",
+      "avatar_url": "https://xxx.com/avatar.png",
+      "last_login_at": "2026-06-04 10:00:00",
+      "created_at": "2026-06-01 10:00:00",
+      "stats": {
+        "favorite_count": 12,
+        "download_count": 8,
+        "view_count": 36,
+        "ai_conversation_count": 5,
+        "ai_message_count": 42
+      }
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 12,
+    "total": 100
+  }
+}
+2. 获取用户详情
+GET /api/admin/users/:id
+
+权限：
+
+管理员
+
+返回：
+
+{
+  "id": 1,
+  "username": "hetao",
+  "email": "test@example.com",
+  "role": "user",
+  "status": "normal",
+  "avatar_url": "https://xxx.com/avatar.png",
+  "last_login_at": "2026-06-04 10:00:00",
+  "created_at": "2026-06-01 10:00:00",
+  "stats": {
+    "favorite_count": 12,
+    "download_count": 8,
+    "view_count": 36,
+    "ai_conversation_count": 5,
+    "ai_message_count": 42
+  }
+}
+3. 修改用户状态
+PATCH /api/admin/users/:id/status
+
+权限：
+
+管理员
+
+请求参数：
+
+{
+  "status": "disabled"
+}
+
+可选值：
+
+normal
+disabled
+
+后端逻辑：
+
+1. 管理员不能禁用自己
+2. 更新 users.status
+3. 写入 admin_logs：USER_STATUS_CHANGE
+4. 删除用户
+DELETE /api/admin/users/:id
+
+权限：
+
+管理员
+
+说明：
+
+软删除用户。
+
+后端逻辑：
+
+UPDATE users
+SET deleted_at = NOW()
+WHERE id = ?
+
+注意：
+
+不删除用户的 favorites、download_records、ai_conversations 等历史数据。
+只让该用户无法登录。
+十四、最终接口清单
+认证接口
+POST   /api/auth/register
+POST   /api/auth/login
+POST   /api/auth/logout
+GET    /api/auth/me
+用户个人中心接口
+GET    /api/user/profile
+PATCH  /api/user/profile
+PATCH  /api/user/password
+前台图库接口
+GET    /api/images
+GET    /api/images/:id
+POST   /api/images/:id/view
+GET    /api/images/:id/related
+GET    /api/categories
+GET    /api/tags
+收藏接口
+POST   /api/images/:id/favorite
+DELETE /api/images/:id/favorite
+GET    /api/user/favorites
+下载接口
+POST   /api/images/:id/download
+GET    /api/user/downloads
+DELETE /api/user/downloads/:id
+DELETE /api/user/downloads
+AI 聊天接口
+POST   /api/ai/chat
+GET    /api/ai/conversations
+GET    /api/ai/conversations/:id/messages
+DELETE /api/ai/conversations/:id
+DELETE /api/ai/conversations
+管理员首页接口
+GET    /api/admin/dashboard/stats
+GET    /api/admin/logs
+管理员图片接口
+POST   /api/admin/files/images
+POST   /api/admin/images
+GET    /api/admin/images
+GET    /api/admin/images/:id
+PATCH  /api/admin/images/:id
+DELETE /api/admin/images/:id
+PATCH  /api/admin/images/:id/restore
+管理员分类接口
+GET    /api/admin/categories
+POST   /api/admin/categories
+PATCH  /api/admin/categories/:id
+DELETE /api/admin/categories/:id
+管理员标签接口
+GET    /api/admin/tags
+POST   /api/admin/tags
+PATCH  /api/admin/tags/:id
+DELETE /api/admin/tags/:id
+管理员用户接口
+GET    /api/admin/users
+GET    /api/admin/users/:id
+PATCH  /api/admin/users/:id/status
+DELETE /api/admin/users/:id
+十五、页面和接口对应关系
+登录注册页
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+首页
+GET /api/images?page=1&pageSize=8&sort=weight
+GET /api/categories
+GET /api/tags
+
+说明：
+
+首页不需要单独设计 /api/home。
+首页展示内容可以直接复用图片列表、分类、标签接口。
+图库页
+GET /api/images
+GET /api/categories
+GET /api/tags
+
+支持：
+
+搜索
+分类筛选
+标签筛选
+比例筛选
+排序
+分页
+图片详情页
+GET  /api/images/:id
+POST /api/images/:id/view
+POST /api/images/:id/favorite
+DELETE /api/images/:id/favorite
+POST /api/images/:id/download
+GET  /api/images/:id/related
+我的页面
+GET    /api/user/profile
+GET    /api/user/favorites
+GET    /api/user/downloads
+DELETE /api/user/downloads/:id
+DELETE /api/user/downloads
+PATCH  /api/user/profile
+PATCH  /api/user/password
+桃灵助手页
+POST   /api/ai/chat
+GET    /api/ai/conversations
+GET    /api/ai/conversations/:id/messages
+DELETE /api/ai/conversations/:id
+DELETE /api/ai/conversations
+管理中心首页
+GET /api/admin/dashboard/stats
+GET /api/admin/logs
+上传图片页
+POST /api/admin/files/images
+POST /api/admin/images
+GET  /api/admin/categories
+GET  /api/admin/tags
+图片管理页
+GET    /api/admin/images
+GET    /api/admin/images/:id
+PATCH  /api/admin/images/:id
+DELETE /api/admin/images/:id
+PATCH  /api/admin/images/:id/restore
+分类与标签管理页
+GET    /api/admin/categories
+POST   /api/admin/categories
+PATCH  /api/admin/categories/:id
+DELETE /api/admin/categories/:id
+
+GET    /api/admin/tags
+POST   /api/admin/tags
+PATCH  /api/admin/tags/:id
+DELETE /api/admin/tags/:id
+用户管理页
+GET    /api/admin/users
+GET    /api/admin/users/:id
+PATCH  /api/admin/users/:id/status
+DELETE /api/admin/users/:id

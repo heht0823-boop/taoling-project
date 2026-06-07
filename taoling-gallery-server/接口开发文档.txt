@@ -1,0 +1,152 @@
+请基于 Node.js + Express + MySQL 开发一个 AI 图片图库网站后端，项目名称为“桃灵图库”。
+
+核心业务：
+这是一个个人管理员发布型 AI 图片网站。只有管理员可以上传、发布、编辑、删除图片。普通用户只能浏览、搜索、查看详情、收藏、下载和使用 AI 助手。游客可以浏览首页、图库列表、搜索筛选图片和查看图片详情，但不能收藏、下载和使用 AI 助手。管理员和普通用户共用同一个登录入口，users 表通过 role 字段区分 admin 和 user。
+
+技术要求：
+1. 使用 Express 搭建接口服务。
+2. 使用 MySQL 作为数据库,squelize作为数据库映射。
+3. 使用 JWT 做登录鉴权。
+4. 使用 bcrypt 加密密码。
+5. 使用 multer 处理图片上传。
+6. 所有接口统一返回格式：code、message、data。
+7. 所有列表接口必须支持分页。
+8. 管理端接口必须经过 adminOnly 权限中间件。
+9. 收藏、下载、AI 聊天、我的页面必须登录。
+10. 首页、图库、详情可以游客访问。
+11. 图片删除使用软删除，status 改为 deleted，deleted_at 写入时间。
+12. 分类、标签删除也优先使用软删除。
+13. 服务启动时自动检查是否存在管理员，如果不存在，则根据 .env 创建管理员账号hetao,密码135799510Ht.
+
+请创建以下数据库表：
+users
+images
+categories
+tags
+image_tags
+favorites
+download_records
+ai_conversations
+ai_messages
+admin_logs
+
+请实现以下模块：
+1. auth 模块：
+POST /api/auth/register
+POST /api/auth/login
+GET /api/auth/me
+
+2. 公开图片模块：
+GET /api/images
+GET /api/images/:id
+GET /api/images/:id/related
+
+3. 公开分类标签模块：
+GET /api/categories
+GET /api/tags
+
+4. 用户收藏模块：
+POST /api/user/favorites
+DELETE /api/user/favorites/:imageId
+GET /api/user/favorites
+
+5. 用户下载模块：
+POST /api/user/downloads
+GET /api/user/downloads
+DELETE /api/user/downloads/:recordId
+DELETE /api/user/downloads
+
+6. AI 助手模块：
+POST /api/user/ai/conversations
+GET /api/user/ai/conversations
+GET /api/user/ai/conversations/:conversationId/messages
+POST /api/user/ai/chat
+DELETE /api/user/ai/conversations/:conversationId
+DELETE /api/user/ai/conversations
+
+7. 用户中心模块：
+GET /api/user/profile/summary
+PUT /api/user/profile
+
+8. 管理中心模块：
+GET /api/admin/dashboard/stats
+GET /api/admin/logs
+
+9. 管理员图片模块：
+POST /api/admin/images
+GET /api/admin/images
+GET /api/admin/images/:id
+PUT /api/admin/images/:id
+PATCH /api/admin/images/:id/status
+DELETE /api/admin/images/:id
+
+10. 管理员分类模块：
+GET /api/admin/categories
+POST /api/admin/categories
+PUT /api/admin/categories/:id
+DELETE /api/admin/categories/:id
+
+11. 管理员标签模块：
+GET /api/admin/tags
+POST /api/admin/tags
+PUT /api/admin/tags/:id
+DELETE /api/admin/tags/:id
+
+12. 管理员用户模块：
+GET /api/admin/users
+GET /api/admin/users/:id
+PATCH /api/admin/users/:id/status
+
+搜索要求：
+图片列表支持 keyword、categoryId、tagIds、status、sort、page、pageSize。
+keyword 需要模糊匹配图片 title、description 和 tag name。
+管理员图片列表可以查询 public、private、draft、deleted。
+用户端图片列表只允许返回 public。
+
+日志要求：
+以下行为需要写入 admin_logs：
+用户注册
+用户登录
+管理员上传图片
+管理员编辑图片
+管理员删除图片
+管理员修改图片状态
+管理员新增分类
+管理员编辑分类
+管理员删除分类
+管理员新增标签
+管理员编辑标签
+管理员删除标签
+用户收藏图片
+用户取消收藏
+用户下载图片
+管理员修改用户状态
+
+权限要求：
+optionalAuth：用于公开图片列表和图片详情，有 token 就解析，没有 token 也允许访问。
+auth：用于收藏、下载、AI 助手、我的页面。
+adminOnly：用于所有 /api/admin/* 接口。
+
+请按照模块化结构生成代码：
+src
+├── app.js
+├── config
+├── routes
+├── controllers
+├── services
+├── models
+├── middlewares
+├── utils
+└── uploads
+
+请同时提供：
+1. 使用squelize做数据库映射安全防sql注入
+2. 使用.env环境变量
+3.数据库表我已经创建好名字叫taoling_gallery,密码135799510Ht.连接成功按照工程化restful规范开发不能出现使用错误的状态码,边界值清晰,错误处理返回的错误提示必须要符合语境,中间件和工具函数封装要规范
+4.所有代码必须要有完整清晰的注释便于理解维护
+5.完成所有接口创建后必须要给我创建完整的接口文档包括请求路径，方法，参数（必填参数还是可选参数必须标注清楚参数具体作用）,是否需要携带token，请求参考是什么格式放在query还是params，data等等,响应式数据完整的字段包含嵌套字段不能出现遗漏,所有可能返回的情况字段字段作用必须标注清楚便于前端对接
+6.开发时将管理员和用户接口区分开发使用不同的文件夹比如用户使用user，管理员放在admin，公用接口比如登录全放在user就好
+7.所有接口创建不允许堆叠,必须要按照业务逻辑拆分不同的文件分开处理每个层面都同理,不允许出现字段代码接口冗余,所有接口职责单一
+8.开发时我不需要你直接全部创建完毕,你必须进行git init -y初始化每完成一个关键开发必须要进行一次git提交，依赖没有安装必须安装,在页面开发时导入导出必须要符合需求没有作用冗余的必须删除,代码逻辑也是
+9.这个文档会作为后续的服务开发规范,所有你必须要记住我的需求,后续我删除新增修改接口等等操作你都需要遵循我的要求完成开发然后更新我需要的接口文档
+10.最重要的是接口修改完善新增修改必须要先阅读我的数据库表真实字段防止接口字段和数据库不匹配,文档在项目目录下的数据库文档介绍

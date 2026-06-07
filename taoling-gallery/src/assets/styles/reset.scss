@@ -1,0 +1,41 @@
+@use "./variables" as *;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: $color-bg-page;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  color: $color-text-main;
+  font-family:
+    Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 214, 229, 0.72), transparent 32%),
+    radial-gradient(circle at 86% 16%, rgba(197, 182, 255, 0.48), transparent 30%),
+    linear-gradient(180deg, #fff8fb 0%, #fff1f6 100%);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}

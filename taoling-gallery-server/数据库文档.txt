@@ -1,0 +1,743 @@
+AI 图片网站数据库设计说明
+一、系统核心设计原则
+
+本系统是一个 AI 图片展示与管理平台，支持游客浏览、用户收藏/下载/AI 聊天、管理员后台管理。
+
+核心原则：
+
+users：只存账号身份信息
+user_stats：存用户个人统计数据
+images：存图片基础信息和图片热度统计
+favorites：存用户当前收藏关系
+download_records：存下载行为记录
+image_view_records：存浏览行为记录
+ai_conversations：存 AI 会话
+ai_messages：存 AI 消息
+admin_logs：统一存后台动态和系统操作日志
+
+不要把收藏数、下载数、AI 会话数等业务统计全部塞进 users 表，应该拆到 user_stats 表中，保证账号信息和业务数据解耦。
+
+二、用户与权限相关表
+1. users 用户表
+
+用于存储用户账号、登录、角色、状态等基础信息。
+
+字段	作用
+id	用户 ID
+username	用户名，唯一
+email	邮箱，唯一，可选
+password_hash	加密后的密码
+role	用户角色：admin 管理员，user 普通用户
+status	账号状态：normal 正常，disabled 禁用
+avatar_url	用户头像
+last_login_at	最后登录时间
+created_at	创建时间
+updated_at	更新时间
+deleted_at	软删除时间
+关键规则
+
+登录时必须判断：
+
+deleted_at IS NULL
+AND status = 'normal'
+
+角色判断：
+
+role = admin：管理员
+role = user：普通用户
+
+账号禁用：
+
+status = disabled：不能登录
+
+软删除：
+
+deleted_at 不为空：账号已删除
+2. user_stats 用户统计表
+
+用于存储用户个人中心相关统计数据。
+
+字段	作用
+id	统计 ID
+user_id	用户 ID，唯一
+favorite_count	当前收藏数量
+download_count	累计下载数量
+view_count	累计浏览数量
+ai_conversation_count	AI 会话数量
+ai_message_count	AI 消息数量
+created_at	创建时间
+updated_at	更新时间
+关键规则
+
+用户注册成功后必须初始化：
+
+INSERT INTO user_stats (user_id) VALUES (?);
+
+登录成功或查询个人中心时，建议和 users 一起返回：
+
+user + stats
+三、图片内容相关表
+3. images 图片作品表
+
+用于存储图片本身、图片状态、分类、比例和热度统计。
+
+字段	作用
+id	图片 ID
+title	图片标题
+description	图片描述
+image_url	原图地址
+thumbnail_url	缩略图地址
+category_id	分类 ID
+aspect_ratio	图片比例，例如 1:1、9:16、16:9、4:3
+status	图片状态：public、private、draft、deleted
+display_weight	展示权重，越大越优先展示
+view_count	图片浏览次数
+download_count	图片下载次数
+favorite_count	图片收藏次数
+created_at	创建时间
+updated_at	更新时间
+deleted_at	软删除时间
+前台查询规则
+
+游客和普通用户只能看公开图片：
+
+WHERE status = 'public'
+AND deleted_at IS NULL
+管理员查询规则
+
+管理员默认看未软删除数据：
+
+WHERE deleted_at IS NULL
+
+管理员查看回收站：
+
+WHERE status = 'deleted'
+OR deleted_at IS NOT NULL
+删除图片规则
+
+图片删除不是物理删除，而是软删除：
+
+UPDATE images
+SET status = 'deleted',
+    deleted_at = NOW()
+WHERE id = ?;
+4. categories 分类表
+
+用于管理图片分类。
+
+字段	作用
+id	分类 ID
+name	分类名称，唯一
+sort_order	排序值，越大越靠前
+status	状态：normal 正常，disabled 禁用
+created_at	创建时间
+updated_at	更新时间
+deleted_at	软删除时间
+前台分类查询规则
+WHERE status = 'normal'
+AND deleted_at IS NULL
+ORDER BY sort_order DESC, created_at DESC
+5. tags 标签表
+
+用于管理图片标签。
+
+字段	作用
+id	标签 ID
+name	标签名称，唯一
+color	标签颜色
+usage_count	标签使用次数
+status	状态：normal 正常，disabled 禁用
+created_at	创建时间
+updated_at	更新时间
+deleted_at	软删除时间
+关键规则
+
+usage_count 来自 image_tags 图片标签关联关系。
+
+新增图片标签时：
+
+usage_count + 1
+
+删除图片标签时：
+
+usage_count - 1
+
+最低不能小于 0。
+
+6. image_tags 图片标签关联表
+
+用于建立图片和标签的多对多关系。
+
+字段	作用
+id	关联 ID
+image_id	图片 ID
+tag_id	标签 ID
+created_at	创建时间
+关键规则
+
+一张图片可以有多个标签，一个标签也可以绑定多张图片。
+
+需要唯一约束：
+
+UNIQUE(image_id, tag_id)
+
+防止同一张图片重复绑定同一个标签。
+
+四、用户行为相关表
+7. favorites 收藏表
+
+用于存储用户当前收藏关系。
+
+字段	作用
+id	收藏 ID
+user_id	用户 ID
+image_id	图片 ID
+created_at	收藏时间
+关键规则
+
+需要唯一约束：
+
+UNIQUE(user_id, image_id)
+
+防止用户重复收藏同一张图片。
+
+收藏闭环
+
+用户收藏图片时：
+
+1. 校验用户已登录
+2. 校验图片存在
+3. 校验图片 status = public
+4. 插入 favorites
+5. images.favorite_count + 1
+6. user_stats.favorite_count + 1
+7. 写入 admin_logs：FAVORITE_CREATE
+取消收藏闭环
+
+用户取消收藏时：
+
+1. 删除 favorites 中对应关系
+2. images.favorite_count - 1
+3. user_stats.favorite_count - 1
+4. 写入 admin_logs：FAVORITE_CANCEL
+
+计数减少时要避免小于 0：
+
+GREATEST(count - 1, 0)
+8. download_records 下载记录表
+
+用于记录用户下载图片的历史行为。
+
+字段	作用
+id	下载记录 ID
+user_id	用户 ID
+image_id	图片 ID
+image_title	下载时图片标题快照
+image_url	下载时图片地址快照
+created_at	下载时间
+deleted_at	用户删除下载记录时使用
+下载闭环
+
+用户下载图片时：
+
+1. 校验用户已登录
+2. 校验图片存在
+3. 校验图片 status = public
+4. 新增 download_records
+5. images.download_count + 1
+6. user_stats.download_count + 1
+7. 写入 admin_logs：DOWNLOAD_IMAGE
+8. 返回 image_url
+删除下载记录规则
+
+用户删除下载记录只是隐藏自己的记录：
+
+只更新 download_records.deleted_at
+不减少 images.download_count
+不减少 user_stats.download_count
+
+原因：
+
+download_count 表示历史累计下载行为，不是当前展示数量。
+9. image_view_records 图片浏览记录表
+
+用于记录图片详情页浏览行为，支持登录用户和游客。
+
+字段	作用
+id	浏览记录 ID
+user_id	用户 ID，游客为空
+image_id	图片 ID
+visitor_id	游客标识，前端生成 UUID
+image_title	浏览时图片标题快照
+ip_address	IP 地址
+user_agent	浏览器或设备信息
+created_at	浏览时间
+浏览闭环
+
+用户或游客打开图片详情时：
+
+1. 校验图片 status = public
+2. 写入 image_view_records
+3. images.view_count + 1
+4. 如果是登录用户，user_stats.view_count + 1
+5. 可选写入 admin_logs：IMAGE_VIEW
+游客浏览
+user_id = NULL
+visitor_id = 前端生成的游客 UUID
+登录用户浏览
+user_id = 当前用户 ID
+visitor_id 可传可不传
+五、AI 聊天相关表
+10. ai_conversations AI 会话表
+
+用于存储 AI 聊天会话。
+
+字段	作用
+id	AI 会话 ID
+user_id	用户 ID
+title	会话标题，默认“新的对话”，后续由 AI 生成
+created_at	创建时间
+updated_at	更新时间
+deleted_at	软删除时间
+AI 会话创建逻辑
+用户第一次发送消息
+↓
+如果没有 conversation_id，后端自动创建会话
+↓
+title 默认为“新的对话”
+↓
+保存用户消息
+↓
+调用大模型
+↓
+保存 AI 回复
+↓
+大模型根据首轮对话生成标题
+↓
+更新 ai_conversations.title
+11. ai_messages AI 消息表
+
+用于存储 AI 会话中的用户消息和助手回复。
+
+字段	作用
+id	AI 消息 ID
+conversation_id	会话 ID
+user_id	用户 ID
+role	消息角色：user 用户，assistant 助手
+content	消息内容
+recommended_tags	AI 推荐标签，JSON
+recommended_image_ids	AI 推荐图片 ID 列表，JSON
+created_at	创建时间
+deleted_at	软删除时间
+AI 消息闭环
+
+用户发送 AI 消息时：
+
+1. 校验用户已登录
+2. 如果没有 conversation_id，创建 ai_conversations
+3. 保存用户消息 role = user
+4. 调用大模型
+5. 保存 AI 回复 role = assistant
+6. AI 回复中可保存 recommended_tags 和 recommended_image_ids
+7. 更新 user_stats.ai_message_count
+8. 如果是新会话，更新 user_stats.ai_conversation_count
+9. 写入 admin_logs
+删除 AI 会话
+
+删除会话时采用软删除：
+
+1. ai_conversations.deleted_at = NOW()
+2. 当前会话下 ai_messages.deleted_at = NOW()
+六、后台日志与系统动态表
+12. admin_logs 管理员日志 / 系统动态表
+
+用于统一记录用户行为、管理员操作、系统动态，可作为后台首页“最近动态”的数据来源。
+
+字段	作用
+id	日志 ID
+actor_id	操作人 ID，游客或系统可为空
+actor_name	操作人名称快照
+actor_role	操作者角色：admin、user、system、guest
+action_type	操作类型
+target_type	目标类型，例如 image、user、category、tag、favorite、download、auth、ai
+target_id	目标 ID
+title	日志标题
+content	日志详情
+ip_address	IP 地址
+created_at	创建时间
+推荐 action_type
+用户相关
+USER_REGISTER
+USER_LOGIN
+USER_LOGOUT
+USER_STATUS_CHANGE
+USER_PROFILE_UPDATE
+图片相关
+IMAGE_UPLOAD
+IMAGE_UPDATE
+IMAGE_DELETE
+IMAGE_RESTORE
+IMAGE_STATUS_CHANGE
+IMAGE_VIEW
+分类相关
+CATEGORY_CREATE
+CATEGORY_UPDATE
+CATEGORY_DELETE
+标签相关
+TAG_CREATE
+TAG_UPDATE
+TAG_DELETE
+收藏相关
+FAVORITE_CREATE
+FAVORITE_CANCEL
+下载相关
+DOWNLOAD_IMAGE
+DOWNLOAD_RECORD_DELETE
+DOWNLOAD_RECORD_CLEAR
+AI 相关
+AI_CONVERSATION_CREATE
+AI_MESSAGE_SEND
+AI_MESSAGE_REPLY
+AI_TITLE_GENERATE
+AI_CONVERSATION_DELETE
+七、核心业务闭环
+1. 注册闭环
+用户注册
+↓
+写入 users
+↓
+初始化 user_stats
+↓
+写入 admin_logs：USER_REGISTER
+2. 登录闭环
+用户登录
+↓
+校验账号存在
+↓
+校验 deleted_at IS NULL
+↓
+校验 status = normal
+↓
+校验密码
+↓
+更新 last_login_at
+↓
+查询 user_stats
+↓
+返回 token + user + stats
+↓
+写入 admin_logs：USER_LOGIN
+
+登录接口建议返回：
+
+{
+  "token": "jwt_token",
+  "user": {
+    "id": 1,
+    "username": "hetao",
+    "email": "test@example.com",
+    "role": "user",
+    "status": "normal",
+    "avatar_url": "https://xxx.com/avatar.png",
+    "last_login_at": "2026-06-04 20:00:00",
+    "created_at": "2026-06-01 10:00:00"
+  },
+  "stats": {
+    "favorite_count": 12,
+    "download_count": 8,
+    "view_count": 36,
+    "ai_conversation_count": 5,
+    "ai_message_count": 42
+  }
+}
+3. 游客浏览闭环
+游客进入首页
+↓
+只能查询 public 图片
+↓
+可以搜索、筛选、查看详情
+↓
+查看详情时写入 image_view_records
+↓
+images.view_count + 1
+↓
+游客不能收藏、不能下载、不能 AI 聊天
+4. 用户收藏闭环
+用户点击收藏
+↓
+校验登录
+↓
+校验图片 public
+↓
+favorites 新增记录
+↓
+images.favorite_count + 1
+↓
+user_stats.favorite_count + 1
+↓
+admin_logs 记录 FAVORITE_CREATE
+
+取消收藏：
+
+favorites 删除记录
+↓
+images.favorite_count - 1
+↓
+user_stats.favorite_count - 1
+↓
+admin_logs 记录 FAVORITE_CANCEL
+5. 用户下载闭环
+用户点击下载
+↓
+校验登录
+↓
+校验图片 public
+↓
+download_records 新增记录
+↓
+images.download_count + 1
+↓
+user_stats.download_count + 1
+↓
+admin_logs 记录 DOWNLOAD_IMAGE
+↓
+返回图片下载地址
+6. 用户浏览闭环
+用户查看图片详情
+↓
+image_view_records 新增记录
+↓
+images.view_count + 1
+↓
+如果是登录用户，user_stats.view_count + 1
+↓
+admin_logs 可记录 IMAGE_VIEW
+7. AI 聊天闭环
+用户发送 AI 消息
+↓
+校验登录
+↓
+如果没有 conversation_id，自动创建 ai_conversations
+↓
+保存 user 消息
+↓
+调用大模型
+↓
+保存 assistant 消息
+↓
+AI 返回推荐标签 / 推荐图片 ID
+↓
+如果是新会话，AI 自动生成标题
+↓
+更新 user_stats
+↓
+写入 admin_logs
+八、用户个人中心数据来源
+
+个人中心主要来自：
+
+users
+user_stats
+
+建议返回：
+
+{
+  "user": {
+    "id": 1,
+    "username": "hetao",
+    "email": "test@example.com",
+    "role": "user",
+    "avatar_url": "https://xxx.com/avatar.png",
+    "created_at": "2026-06-01 10:00:00"
+  },
+  "stats": {
+    "favorite_count": 12,
+    "download_count": 8,
+    "view_count": 36,
+    "ai_conversation_count": 5,
+    "ai_message_count": 42
+  }
+}
+九、管理员首页数据来源
+
+管理员首页建议展示：
+
+数据	来源
+图片总数	images
+用户总数	users
+累计浏览数	images.view_count 汇总
+累计下载数	images.download_count 汇总
+累计收藏数	images.favorite_count 汇总
+AI 会话总数	ai_conversations
+最近动态	admin_logs
+统计规则
+
+图片总数：
+
+WHERE deleted_at IS NULL
+AND status != 'deleted'
+
+用户总数：
+
+WHERE deleted_at IS NULL
+
+最近动态：
+
+FROM admin_logs
+ORDER BY created_at DESC
+LIMIT 10
+十、核心接口与数据库表对应关系
+1. 登录接口
+POST /api/auth/login
+
+用到：
+
+users
+user_stats
+admin_logs
+
+返回：
+
+token
+user
+stats
+2. 用户个人中心接口
+GET /api/user/profile
+
+用到：
+
+users
+user_stats
+3. 图片列表接口
+GET /api/images
+
+用到：
+
+images
+categories
+favorites，可选，用于判断当前登录用户是否已收藏
+
+游客和普通用户只能查询：
+
+images.status = 'public'
+AND images.deleted_at IS NULL
+4. 图片详情接口
+GET /api/images/:id
+
+用到：
+
+images
+categories
+tags
+image_tags
+image_view_records
+user_stats
+admin_logs
+
+作用：
+
+查看图片详情
+记录浏览行为
+增加浏览统计
+返回图片详情、分类、标签、是否收藏等信息
+5. 收藏接口
+POST /api/images/:id/favorite
+
+用到：
+
+favorites
+images.favorite_count
+user_stats.favorite_count
+admin_logs
+6. 取消收藏接口
+DELETE /api/images/:id/favorite
+
+用到：
+
+favorites
+images.favorite_count
+user_stats.favorite_count
+admin_logs
+7. 下载接口
+POST /api/images/:id/download
+
+用到：
+
+download_records
+images.download_count
+user_stats.download_count
+admin_logs
+8. AI 聊天接口
+POST /api/ai/chat
+
+用到：
+
+ai_conversations
+ai_messages
+images
+tags
+user_stats
+admin_logs
+
+作用：
+
+保存用户消息
+调用大模型
+保存 AI 回复
+返回推荐标签和推荐图片
+更新用户 AI 统计
+十一、权限控制总结
+游客权限
+
+游客可以：
+
+查看图片列表
+搜索图片
+筛选图片
+查看图片详情
+产生浏览记录
+
+游客不能：
+
+收藏图片
+下载图片
+使用 AI 聊天
+进入个人中心
+进入管理后台
+普通用户权限
+
+普通用户可以：
+
+登录
+查看图片
+搜索筛选图片
+查看详情
+收藏 / 取消收藏
+下载图片
+查看下载记录
+删除 / 清空自己的下载记录
+使用 AI 聊天
+查看 / 删除自己的 AI 会话
+查看个人中心统计
+
+普通用户不能：
+
+管理图片
+管理分类
+管理标签
+管理用户
+查看管理员首页统计
+管理员权限
+
+管理员可以：
+
+登录同一个入口
+根据 role = admin 进入管理端
+管理图片
+管理分类
+管理标签
+管理用户
+查看统计数据
+查看最近动态
+查看回收站
+恢复或删除图片

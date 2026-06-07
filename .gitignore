@@ -1,0 +1,41 @@
+# ======================
+# 前端
+# ======================
+taoling-gallery/node_modules/
+taoling-gallery/dist/
+
+# ======================
+# 后端
+# ======================
+taoling-gallery-server/node_modules/
+taoling-gallery-server/.env
+taoling-gallery-server/.env.local
+taoling-gallery-server/.env.*.local
+taoling-gallery-server/logs/
+
+# ======================
+# 日志
+# ======================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ======================
+# 系统文件
+# ======================
+.DS_Store
+Thumbs.db
+
+# ======================
+# IDE
+# ======================
+.idea/
+.vscode/
+
+# ======================
+# 临时文件
+# ======================
+tmp/
+temp/
+*.tmp

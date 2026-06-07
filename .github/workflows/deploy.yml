@@ -1,0 +1,155 @@
+﻿name: 桃灵图库全自动部署
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # =========================
+      # 1. 前端安装依赖并打包
+      # =========================
+      - name: 安装前端依赖
+        working-directory: ./taoling-gallery
+        run: npm install
+
+      - name: 打包前端
+        working-directory: ./taoling-gallery
+        run: npm run build
+
+      # =========================
+      # 2. 打包前端 dist
+      # 压缩包里面直接是 index.html、assets
+      # =========================
+      - name: 打包前端 dist
+        run: |
+          mkdir -p deploy-packages
+          cd taoling-gallery/dist
+          tar -czf ../../deploy-packages/frontend.tar.gz .
+
+      # =========================
+      # 3. 打包后端核心文件
+      # 只上传 src 和 package.json
+      # 不上传 .env、node_modules、package-lock.json、文档
+      # =========================
+      - name: 打包后端核心文件
+        run: |
+          mkdir -p deploy-packages
+          cd taoling-gallery-server
+
+          echo "当前后端目录文件："
+          ls -la
+
+          tar -czf ../deploy-packages/server.tar.gz \
+            src \
+            package.json
+
+      # =========================
+      # 4. 上传压缩包到服务器 /tmp
+      # =========================
+      - name: 上传部署压缩包到服务器
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "deploy-packages/frontend.tar.gz,deploy-packages/server.tar.gz"
+          target: "/tmp"
+          strip_components: 1
+          overwrite: true
+
+      # =========================
+      # 5. 服务器部署前端 + 后端 + 重启 PM2
+      # 不验证接口
+      # =========================
+      - name: 部署前端和后端代码并重启服务
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+
+            echo "=============================="
+            echo "开始部署桃灵图库"
+            echo "=============================="
+
+            echo "检查上传包："
+            ls -lh /tmp/frontend.tar.gz
+            ls -lh /tmp/server.tar.gz
+
+            echo "=============================="
+            echo "1. 部署前端 dist"
+            echo "=============================="
+
+            mkdir -p /var/www/taoling-gallery/dist
+
+            echo "清空旧前端文件..."
+            rm -rf /var/www/taoling-gallery/dist/*
+
+            echo "解压新前端文件..."
+            tar -xzf /tmp/frontend.tar.gz -C /var/www/taoling-gallery/dist
+
+            echo "前端部署后目录："
+            ls -la /var/www/taoling-gallery/dist
+
+            echo "=============================="
+            echo "2. 部署后端代码"
+            echo "=============================="
+
+            mkdir -p /root/taoling-gallery-server
+
+            echo "进入后端目录..."
+            cd /root/taoling-gallery-server
+
+            echo "检查服务器 .env 是否存在..."
+            if [ ! -f .env ]; then
+              echo "错误：/root/taoling-gallery-server/.env 不存在"
+              echo "请先手动上传 .env 到服务器后端目录"
+              exit 1
+            fi
+
+            echo ".env 存在，继续部署"
+
+            echo "删除旧 src，保留 .env、node_modules、文档文件"
+            rm -rf src
+
+            echo "解压新后端代码..."
+            tar -xzf /tmp/server.tar.gz -C /root/taoling-gallery-server
+
+            echo "后端部署后目录："
+            ls -la /root/taoling-gallery-server
+
+            echo "=============================="
+            echo "3. 安装后端生产依赖"
+            echo "=============================="
+
+            npm install --omit=dev
+
+            echo "=============================="
+            echo "4. 重启 PM2 服务"
+            echo "=============================="
+
+            pm2 delete taoling-gallery-server || true
+            pm2 start src/server.js --name taoling-gallery-server
+            pm2 save
+
+            echo "PM2 当前状态："
+            pm2 list
+
+            echo "=============================="
+            echo "自动化部署完成"
+            echo "=============================="

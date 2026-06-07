@@ -1,0 +1,48 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# 环境变量（包含敏感信息）
+.env
+.env.local
+.env.*.local
+
+# 日志文件
+logs/
+*.log
+
+# 上传文件（运行时生成）
+src/uploads/*
+!src/uploads/.gitkeep
+src/uploads/variants/*
+!src/uploads/variants/.gitkeep
+
+# 测试覆盖率
+coverage/
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 生产构建产物
+dist/
+build/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 锁文件（如果有多个环境可能需要保留）
+# package-lock.json
+# yarn.lock
