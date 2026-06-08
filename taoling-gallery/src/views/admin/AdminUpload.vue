@@ -7,7 +7,7 @@ import ConfirmDialog from '@/components/feedback/ConfirmDialog.vue'
 import TaolingMascot from '@/components/business/TaolingMascot.vue'
 import { useAdminStore } from '@/stores/admin'
 import { debounce } from '@/utils/perform'
-import type { AdminImageStatus } from '@/types/admin'
+import type { AdminImageStatus, AdminTag } from '@/types/admin'
 import { convertImageToWebp } from '@/utils/imageConvert'
 
 const adminStore = useAdminStore()
@@ -70,7 +70,7 @@ const previewSize = {
   height: 480,
 }
 
-const selectedTags = computed(() => adminStore.tags.filter((t) => form.tag_ids.includes(t.id)))
+const selectedTagObjects = ref<AdminTag[]>([])
 
 const tagSearchLoading = ref(false)
 
@@ -110,18 +110,26 @@ function toggleTag(tagId: number) {
   const idx = form.tag_ids.indexOf(tagId)
   if (idx >= 0) {
     form.tag_ids.splice(idx, 1)
+    const objIdx = selectedTagObjects.value.findIndex((t) => t.id === tagId)
+    if (objIdx >= 0) selectedTagObjects.value.splice(objIdx, 1)
   } else {
     if (form.tag_ids.length >= TAG_MAX) {
       ElMessage.warning(`最多选择 ${TAG_MAX} 个标签`)
       return
     }
     form.tag_ids.push(tagId)
+    const tag = adminStore.tags.find((t) => t.id === tagId)
+    if (tag) selectedTagObjects.value.push(tag)
   }
 }
 
 function removeTag(tagId: number) {
   const idx = form.tag_ids.indexOf(tagId)
-  if (idx >= 0) form.tag_ids.splice(idx, 1)
+  if (idx >= 0) {
+    form.tag_ids.splice(idx, 1)
+    const objIdx = selectedTagObjects.value.findIndex((t) => t.id === tagId)
+    if (objIdx >= 0) selectedTagObjects.value.splice(objIdx, 1)
+  }
 }
 
 onMounted(() => {
@@ -206,6 +214,7 @@ function resetForm() {
   form.description = ''
   form.category_id = undefined
   form.tag_ids = []
+  selectedTagObjects.value = []
   form.status = 'public'
   form.display_weight = 50
   form.aspect_ratio = '3:4'
@@ -307,7 +316,7 @@ function resetForm() {
 
         <div class="selected-tags">
           <span
-            v-for="tag in selectedTags"
+            v-for="tag in selectedTagObjects"
             :key="tag.id"
             class="selected-tag"
             :style="{ '--tag-color': tag.color || '#ffd6e5' }"
@@ -317,7 +326,7 @@ function resetForm() {
               <ElIcon><Close /></ElIcon>
             </button>
           </span>
-          <span v-if="!selectedTags.length" class="placeholder">尚未选择标签</span>
+          <span v-if="!selectedTagObjects.length" class="placeholder">尚未选择标签</span>
         </div>
 
         <div class="tag-search-box">
