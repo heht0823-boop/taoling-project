@@ -31,17 +31,25 @@ const statusText: Record<AdminImageStatus, string> = {
 }
 const coverSize = getAspectRatioSize('4:3', 420)
 
+const totalPages = computed(
+  () => Math.ceil(adminStore.imagePagination.total / filters.pageSize) || 1,
+)
+
 onMounted(async () => {
   await Promise.all([adminStore.fetchCategories(), fetchImages()])
 })
 
-function fetchImages(options: { force?: boolean } = {}) {
-  return adminStore.fetchImages({
-    ...filters,
-    category_id: filters.category_id,
-    status: filters.status,
-    sort: 'latest',
-  }, options)
+async function fetchImages(options: { force?: boolean } = {}) {
+  await adminStore.fetchImages(
+    {
+      ...filters,
+      category_id: filters.category_id,
+      status: filters.status,
+      sort: 'latest',
+    },
+    options,
+  )
+  filters.page = adminStore.imagePagination.page
 }
 
 function resetFilters() {
@@ -53,6 +61,11 @@ function resetFilters() {
 }
 
 function refreshImages() {
+  fetchImages({ force: true })
+}
+
+function applyFilters() {
+  filters.page = 1
   fetchImages({ force: true })
 }
 
@@ -116,23 +129,23 @@ function nextPage() {
         <input
           v-model="filters.keyword"
           placeholder="搜索标题、描述或标签..."
-          @keyup.enter="refreshImages"
+          @keyup.enter="applyFilters"
         />
       </div>
-      <select v-model="filters.category_id" @change="refreshImages">
+      <select v-model="filters.category_id" @change="applyFilters">
         <option :value="undefined">所有分类</option>
         <option v-for="category in adminStore.categories" :key="category.id" :value="category.id">
           {{ category.name }}
         </option>
       </select>
-      <select v-model="filters.status" @change="refreshImages">
+      <select v-model="filters.status" @change="applyFilters">
         <option value="">所有状态</option>
         <option value="public">公开</option>
         <option value="private">私密</option>
         <option value="draft">草稿</option>
         <option value="deleted">已删除</option>
       </select>
-      <button type="button" @click="refreshImages">筛选</button>
+      <button type="button" @click="applyFilters">筛选</button>
       <button class="ghost" type="button" @click="resetFilters">重置</button>
       <button class="ghost" type="button" @click="refreshImages">
         <ElIcon><RefreshRight /></ElIcon>
@@ -212,16 +225,8 @@ function nextPage() {
 
     <div v-if="adminStore.imagePagination.total > filters.pageSize" class="pager">
       <button :disabled="filters.page <= 1" @click="prevPage">上一页</button>
-      <span
-        >{{ adminStore.imagePagination.page }} /
-        {{ adminStore.imagePagination.totalPages || 1 }}</span
-      >
-      <button
-        :disabled="filters.page >= (adminStore.imagePagination.totalPages || 1)"
-        @click="nextPage"
-      >
-        下一页
-      </button>
+      <span>{{ filters.page }} / {{ totalPages }}</span>
+      <button :disabled="filters.page >= totalPages" @click="nextPage">下一页</button>
     </div>
 
     <ConfirmDialog
