@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Document, RefreshLeft, Search, SwitchButton, User } from '@element-plus/icons-vue'
 
@@ -31,17 +31,36 @@ const logFilters = reactive({
   pageSize: 10,
 })
 
+const userTotalPages = computed(
+  () => Math.ceil(adminStore.userPagination.total / userFilters.pageSize) || 1,
+)
+const logTotalPages = computed(
+  () => Math.ceil(adminStore.logPagination.total / logFilters.pageSize) || 1,
+)
+
 onMounted(() => {
   fetchUsers()
   fetchLogs()
 })
 
-function fetchUsers(options: { force?: boolean } = {}) {
-  return adminStore.fetchUsers(userFilters, options)
+async function fetchUsers(options: { force?: boolean } = {}) {
+  await adminStore.fetchUsers(userFilters, options)
+  userFilters.page = adminStore.userPagination.page
 }
 
-function fetchLogs(options: { force?: boolean } = {}) {
-  return adminStore.fetchLogs(logFilters, options)
+async function fetchLogs(options: { force?: boolean } = {}) {
+  await adminStore.fetchLogs(logFilters, options)
+  logFilters.page = adminStore.logPagination.page
+}
+
+function applyUserFilters() {
+  userFilters.page = 1
+  fetchUsers({ force: true })
+}
+
+function applyLogFilters() {
+  logFilters.page = 1
+  fetchLogs({ force: true })
 }
 
 function resetLogs() {
@@ -101,16 +120,6 @@ async function confirmDelete() {
   deleteVisible.value = false
   ElMessage.success('用户已删除并禁用')
 }
-
-function prevLogPage() {
-  logFilters.page--
-  fetchLogs({ force: true })
-}
-
-function nextLogPage() {
-  logFilters.page++
-  fetchLogs({ force: true })
-}
 </script>
 
 <template>
@@ -141,20 +150,20 @@ function nextLogPage() {
           <input
             v-model="userFilters.keyword"
             placeholder="搜索用户名或邮箱..."
-            @keyup.enter="fetchUsers({ force: true })"
+            @keyup.enter="applyUserFilters"
           />
         </label>
-        <select v-model="userFilters.role" @change="fetchUsers({ force: true })">
+        <select v-model="userFilters.role" @change="applyUserFilters">
           <option value="">全部角色</option>
           <option value="user">普通用户</option>
           <option value="admin">管理员</option>
         </select>
-        <select v-model="userFilters.status" @change="fetchUsers({ force: true })">
+        <select v-model="userFilters.status" @change="applyUserFilters">
           <option value="">全部状态</option>
           <option value="normal">正常</option>
           <option value="disabled">禁用</option>
         </select>
-        <button type="button" @click="fetchUsers({ force: true })">筛选</button>
+        <button type="button" @click="applyUserFilters">筛选</button>
       </div>
 
       <div v-if="adminStore.loading && !adminStore.users.length" class="soft-state">
@@ -233,13 +242,43 @@ function nextLogPage() {
           </div>
         </article>
       </div>
+
+      <div v-if="adminStore.userPagination.total > userFilters.pageSize" class="pager">
+        <button
+          :disabled="userFilters.page <= 1"
+          @click="
+            userFilters.page--
+            fetchUsers({ force: true })
+          "
+        >
+          上一页
+        </button>
+        <span>{{ userFilters.page }} / {{ userTotalPages }}</span>
+        <button
+          :disabled="userFilters.page >= userTotalPages"
+          @click="
+            userFilters.page++
+            fetchUsers({ force: true })
+          "
+        >
+          下一页
+        </button>
+      </div>
     </section>
 
     <section v-else class="logs-panel">
       <div class="toolbar">
-        <input v-model="logFilters.action_type" placeholder="动作类型" @keyup.enter="fetchLogs({ force: true })" />
-        <input v-model="logFilters.target_type" placeholder="目标类型" @keyup.enter="fetchLogs({ force: true })" />
-        <button type="button" @click="fetchLogs({ force: true })">筛选日志</button>
+        <input
+          v-model="logFilters.action_type"
+          placeholder="动作类型"
+          @keyup.enter="fetchLogs({ force: true })"
+        />
+        <input
+          v-model="logFilters.target_type"
+          placeholder="目标类型"
+          @keyup.enter="fetchLogs({ force: true })"
+        />
+        <button type="button" @click="applyLogFilters">筛选日志</button>
         <button class="plain-button" type="button" @click="resetLogs">重置</button>
       </div>
       <div v-if="!adminStore.logs.length" class="soft-state">暂无操作日志。</div>
@@ -257,16 +296,23 @@ function nextLogPage() {
           <time class="log-time">{{ formatDateTime(log.created_at) }}</time>
         </li>
       </ul>
-      <div v-if="adminStore.logPagination.total > logFilters.pageSize" class="log-pager">
-        <button :disabled="logFilters.page <= 1" type="button" @click="prevLogPage">上一页</button>
-        <span
-          >{{ adminStore.logPagination.page }} /
-          {{ adminStore.logPagination.totalPages || 1 }}</span
-        >
+      <div v-if="adminStore.logPagination.total > logFilters.pageSize" class="pager">
         <button
-          :disabled="logFilters.page >= (adminStore.logPagination.totalPages || 1)"
-          type="button"
-          @click="nextLogPage"
+          :disabled="logFilters.page <= 1"
+          @click="
+            logFilters.page--
+            fetchLogs({ force: true })
+          "
+        >
+          上一页
+        </button>
+        <span>{{ logFilters.page }} / {{ logTotalPages }}</span>
+        <button
+          :disabled="logFilters.page >= logTotalPages"
+          @click="
+            logFilters.page++
+            fetchLogs({ force: true })
+          "
         >
           下一页
         </button>
@@ -569,15 +615,31 @@ dl {
   white-space: nowrap;
 }
 
-.log-pager {
+.pager {
   display: flex;
   gap: 14px;
   align-items: center;
   justify-content: center;
+  margin-top: 20px;
 
-  button:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
+  button {
+    min-height: 42px;
+    padding: 0 18px;
+    color: $color-text-white;
+    cursor: pointer;
+    background: $gradient-primary;
+    border: 0;
+    border-radius: $radius-pill;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+  }
+
+  span {
+    color: $color-text-light;
+    font-size: 14px;
   }
 }
 

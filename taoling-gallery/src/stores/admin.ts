@@ -69,7 +69,9 @@ export const useAdminStore = defineStore('admin', () => {
   const images = ref<AdminImage[]>([])
   const imagePagination = ref<Pagination>(defaultPagination())
   const categories = ref<AdminCategory[]>([])
+  const categoryPagination = ref<Pagination>(defaultPagination())
   const tags = ref<AdminTag[]>([])
+  const tagPagination = ref<Pagination>(defaultPagination())
   const users = ref<AdminUser[]>([])
   const userPagination = ref<Pagination>(defaultPagination())
   const messages = ref<AdminMessage[]>([])
@@ -96,7 +98,10 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   /** 获取最近操作日志，用于管理首页和日志页。 */
-  async function fetchLogs(params: AdminLogListParams = { page: 1, pageSize: 8 }, options: { force?: boolean } = {}) {
+  async function fetchLogs(
+    params: AdminLogListParams = { page: 1, pageSize: 8 },
+    options: { force?: boolean } = {},
+  ) {
     const cacheKey = createDisplayCacheKey('admin-logs', params)
     const cached = readDisplayCache<PageResult<AdminLog>>(cacheKey)
     if (cached && !options.force && !shouldRefreshForBrowserReload(cacheKey)) {
@@ -218,6 +223,7 @@ export const useAdminStore = defineStore('admin', () => {
     const cached = readDisplayCache<PageResult<AdminCategory>>(cacheKey)
     if (cached && !options.force && !shouldRefreshForBrowserReload(cacheKey)) {
       categories.value = cached.list
+      categoryPagination.value = cached.pagination
       return cached
     }
 
@@ -225,6 +231,7 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       const result = await getAdminCategoryListApi(params)
       categories.value = result.list
+      categoryPagination.value = result.pagination
       writeDisplayCache(cacheKey, result)
       return result
     } finally {
@@ -261,6 +268,7 @@ export const useAdminStore = defineStore('admin', () => {
     const cached = readDisplayCache<PageResult<AdminTag>>(cacheKey)
     if (cached && !options.force && !shouldRefreshForBrowserReload(cacheKey)) {
       tags.value = cached.list
+      tagPagination.value = cached.pagination
       return cached
     }
 
@@ -268,6 +276,7 @@ export const useAdminStore = defineStore('admin', () => {
     try {
       const result = await getAdminTagListApi(params)
       tags.value = result.list
+      tagPagination.value = result.pagination
       writeDisplayCache(cacheKey, result)
       return result
     } finally {
@@ -296,7 +305,10 @@ export const useAdminStore = defineStore('admin', () => {
   }
 
   /** 获取用户列表。 */
-  async function fetchUsers(params: AdminUserListParams = { page: 1, pageSize: 9 }, options: { force?: boolean } = {}) {
+  async function fetchUsers(
+    params: AdminUserListParams = { page: 1, pageSize: 9 },
+    options: { force?: boolean } = {},
+  ) {
     const cacheKey = createDisplayCacheKey('admin-users', params)
     const cached = readDisplayCache<PageResult<AdminUser>>(cacheKey)
     if (cached && !options.force && !shouldRefreshForBrowserReload(cacheKey)) {
@@ -404,7 +416,9 @@ export const useAdminStore = defineStore('admin', () => {
     images,
     imagePagination,
     categories,
+    categoryPagination,
     tags,
+    tagPagination,
     users,
     userPagination,
     messages,

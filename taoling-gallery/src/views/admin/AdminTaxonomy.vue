@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Delete, Folder, Plus, PriceTag, RefreshRight } from '@element-plus/icons-vue'
 
@@ -18,14 +18,35 @@ const pendingSaveCategory = ref<{ id: number; name: string; sortOrder?: number }
 const pendingSaveTag = ref<{ id: number; name: string; color?: string } | null>(null)
 const pendingDelete = ref<{ type: 'category' | 'tag'; id: number; name: string } | null>(null)
 
+const categoryPage = ref(1)
+const tagPage = ref(1)
+const PAGE_SIZE = 12
+
+const categoryTotalPages = computed(
+  () => Math.ceil(adminStore.categoryPagination.total / PAGE_SIZE) || 1,
+)
+const tagTotalPages = computed(() => Math.ceil(adminStore.tagPagination.total / PAGE_SIZE) || 1)
+
+async function fetchCategories(page = 1, options: { force?: boolean } = {}) {
+  categoryPage.value = page
+  await adminStore.fetchCategories({ page, pageSize: PAGE_SIZE, status: 'normal' }, options)
+}
+
+async function fetchTags(page = 1, options: { force?: boolean } = {}) {
+  tagPage.value = page
+  await adminStore.fetchTags({ page, pageSize: PAGE_SIZE, status: 'normal' }, options)
+}
+
 onMounted(() => {
-  adminStore.fetchCategories()
-  adminStore.fetchTags()
+  fetchCategories()
+  fetchTags()
 })
 
 function refreshTaxonomy() {
-  adminStore.fetchCategories(undefined, { force: true })
-  adminStore.fetchTags(undefined, { force: true })
+  categoryPage.value = 1
+  tagPage.value = 1
+  adminStore.fetchCategories({ page: 1, pageSize: PAGE_SIZE, status: 'normal' }, { force: true })
+  adminStore.fetchTags({ page: 1, pageSize: PAGE_SIZE, status: 'normal' }, { force: true })
 }
 
 async function addCategory() {
@@ -152,6 +173,22 @@ async function confirmDelete() {
           </div>
         </article>
       </div>
+
+      <div v-if="adminStore.categoryPagination.total > PAGE_SIZE" class="pager">
+        <button
+          :disabled="categoryPage <= 1"
+          @click="fetchCategories(categoryPage - 1, { force: true })"
+        >
+          上一页
+        </button>
+        <span>{{ categoryPage }} / {{ categoryTotalPages }}</span>
+        <button
+          :disabled="categoryPage >= categoryTotalPages"
+          @click="fetchCategories(categoryPage + 1, { force: true })"
+        >
+          下一页
+        </button>
+      </div>
     </section>
 
     <section class="taxonomy-panel">
@@ -179,6 +216,19 @@ async function confirmDelete() {
             <ElIcon><Delete /></ElIcon>
           </button>
         </article>
+      </div>
+
+      <div v-if="adminStore.tagPagination.total > PAGE_SIZE" class="pager">
+        <button :disabled="tagPage <= 1" @click="fetchTags(tagPage - 1, { force: true })">
+          上一页
+        </button>
+        <span>{{ tagPage }} / {{ tagTotalPages }}</span>
+        <button
+          :disabled="tagPage >= tagTotalPages"
+          @click="fetchTags(tagPage + 1, { force: true })"
+        >
+          下一页
+        </button>
       </div>
     </section>
 
@@ -355,6 +405,34 @@ button {
 .color-input {
   width: 48px;
   padding: 4px;
+}
+
+.pager {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+
+  button {
+    min-height: 42px;
+    padding: 0 18px;
+    color: $color-text-white;
+    cursor: pointer;
+    background: $gradient-primary;
+    border: 0;
+    border-radius: $radius-pill;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+  }
+
+  span {
+    color: $color-text-light;
+    font-size: 14px;
+  }
 }
 
 @media (max-width: 980px) {

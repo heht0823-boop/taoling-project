@@ -38,6 +38,9 @@ const statusText: Record<MessageCheckStatus, string> = {
 
 const selectedMessage = computed(() => adminStore.messageDetail || null)
 const replies = computed(() => adminStore.messageDetail?.replies || [])
+const messageTotalPages = computed(
+  () => Math.ceil(adminStore.messagePagination.total / filters.pageSize) || 1,
+)
 
 onMounted(() => {
   fetchMessages()
@@ -51,11 +54,17 @@ async function fetchMessages(options: { force?: boolean } = {}) {
     },
     options,
   )
+  filters.page = adminStore.messagePagination.page
 
   const firstMessage = result.list[0]
   if (!selectedId.value && firstMessage) {
     await openDetail(firstMessage)
   }
+}
+
+function applyMessageFilters() {
+  filters.page = 1
+  fetchMessages({ force: true })
 }
 
 function resetFilters() {
@@ -100,16 +109,6 @@ async function confirmBlock() {
   ElMessage.success('留言已屏蔽')
 }
 
-function prevPage() {
-  filters.page--
-  fetchMessages({ force: true })
-}
-
-function nextPage() {
-  filters.page++
-  fetchMessages({ force: true })
-}
-
 function displayUser(message: AdminMessage) {
   return message.username || message.user?.username || `用户 #${message.user_id}`
 }
@@ -144,13 +143,13 @@ function displayUser(message: AdminMessage) {
         </label>
       </div>
       <div class="filter-group">
-        <select v-model="filters.check_status" @change="fetchMessages({ force: true })">
+        <select v-model="filters.check_status" @change="applyMessageFilters">
           <option value="">全部状态</option>
           <option value="pending">审核中</option>
           <option value="success">已通过</option>
           <option value="block">已拦截</option>
         </select>
-        <button type="button" class="btn-primary" @click="fetchMessages({ force: true })">
+        <button type="button" class="btn-primary" @click="applyMessageFilters">
           <ElIcon><Search /></ElIcon>
           筛选
         </button>
@@ -220,19 +219,23 @@ function displayUser(message: AdminMessage) {
           </article>
         </template>
 
-        <div v-if="adminStore.messagePagination.total > filters.pageSize" class="pagination">
-          <button :disabled="filters.page <= 1" type="button" class="page-btn" @click="prevPage">
+        <div v-if="adminStore.messagePagination.total > filters.pageSize" class="pager">
+          <button
+            :disabled="filters.page <= 1"
+            @click="
+              filters.page--
+              fetchMessages({ force: true })
+            "
+          >
             上一页
           </button>
-          <span class="page-info">
-            {{ adminStore.messagePagination.page }} /
-            {{ adminStore.messagePagination.totalPages || 1 }}
-          </span>
+          <span>{{ filters.page }} / {{ messageTotalPages }}</span>
           <button
-            :disabled="filters.page >= (adminStore.messagePagination.totalPages || 1)"
-            type="button"
-            class="page-btn"
-            @click="nextPage"
+            :disabled="filters.page >= messageTotalPages"
+            @click="
+              filters.page++
+              fetchMessages({ force: true })
+            "
           >
             下一页
           </button>
@@ -708,32 +711,33 @@ button {
   }
 }
 
-.pagination {
+.pager {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   align-items: center;
   justify-content: center;
   padding-top: 12px;
   border-top: 1px solid rgba(161, 72, 120, 0.06);
-}
 
-.page-btn {
-  min-height: 38px;
-  padding: 0 16px;
-  color: $color-primary;
-  font-size: 13px;
-  background: rgba(255, 248, 251, 0.88);
-  border-radius: 14px;
+  button {
+    min-height: 42px;
+    padding: 0 18px;
+    color: $color-text-white;
+    cursor: pointer;
+    background: $gradient-primary;
+    border: 0;
+    border-radius: $radius-pill;
 
-  &:disabled {
-    color: $color-text-light;
-    background: rgba(255, 255, 255, 0.6);
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
   }
-}
 
-.page-info {
-  color: $color-text-light;
-  font-size: 13px;
+  span {
+    color: $color-text-light;
+    font-size: 14px;
+  }
 }
 
 .detail-header {
