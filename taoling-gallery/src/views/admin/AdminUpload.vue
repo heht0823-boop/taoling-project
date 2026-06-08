@@ -61,9 +61,10 @@ const isBusy = computed(() => converting.value || adminStore.uploading || adminS
 const tagKeyword = ref('')
 const tagPage = ref(1)
 const tagTotal = ref(0)
-const tagTotalPages = ref(1)
 const tagPageSize = 12
 const TAG_MAX = 5
+
+const tagTotalPages = computed(() => Math.ceil(tagTotal.value / tagPageSize) || 1)
 const previewSize = {
   width: 480,
   height: 480,
@@ -84,7 +85,6 @@ const debouncedSearchTags = debounce(async (keyword: string) => {
       status: 'normal',
     })
     tagTotal.value = result.pagination.total
-    tagTotalPages.value = result.pagination.totalPages || 1
   } finally {
     tagSearchLoading.value = false
   }
@@ -101,7 +101,6 @@ async function fetchTagPage(page: number) {
       status: 'normal',
     })
     tagTotal.value = result.pagination.total
-    tagTotalPages.value = result.pagination.totalPages || 1
   } finally {
     tagSearchLoading.value = false
   }
