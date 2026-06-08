@@ -1,4 +1,4 @@
-﻿name: 桃灵图库全自动部署
+name: 桃灵图库全自动部署
 
 on:
   push:
@@ -124,8 +124,11 @@ jobs:
 
             echo ".env 存在，继续部署"
 
-            echo "删除旧 src，保留 .env、node_modules、文档文件"
+            echo "删除旧 src（uploads 已在 src 外部，不会被删除）"
             rm -rf src
+
+            echo "确保 uploads 目录存在..."
+            mkdir -p /root/taoling-gallery-server/uploads
 
             echo "解压新后端代码..."
             tar -xzf /tmp/server.tar.gz -C /root/taoling-gallery-server

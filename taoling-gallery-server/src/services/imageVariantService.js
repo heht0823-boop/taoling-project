@@ -17,7 +17,7 @@ try {
   sharp = null;
 }
 
-const uploadRoot = path.resolve(__dirname, "..", "uploads");
+const uploadRoot = path.resolve(__dirname, "..", "..", "uploads");
 const variantRoot = path.resolve(uploadRoot, "variants");
 
 const variantWidths = {

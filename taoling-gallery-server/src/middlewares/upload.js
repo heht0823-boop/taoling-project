@@ -13,7 +13,7 @@ const { badRequest } = require('../utils/httpError');
  * 文件存储到 uploads 目录，文件名格式为 时间戳-随机串.扩展名
  */
 const storage = multer.diskStorage({
-  destination: path.resolve(__dirname, '..', 'uploads'),
+  destination: path.resolve(__dirname, '..', '..', 'uploads'),
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `${Date.now()}-${Math.random().toString(16).slice(2)}${ext}`);
