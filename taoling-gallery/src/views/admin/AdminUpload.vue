@@ -198,6 +198,7 @@ async function confirmSave() {
     aspect_ratio: form.aspect_ratio,
   })
   ElMessage.success(status === 'draft' ? '草稿已保存' : '图片已发布到图库')
+  saveVisible.value = false
   resetForm()
 }
 
