@@ -120,6 +120,26 @@ async function confirmDelete() {
   deleteVisible.value = false
   ElMessage.success('用户已删除并禁用')
 }
+
+function prevUserPage() {
+  userFilters.page--
+  fetchUsers({ force: true })
+}
+
+function nextUserPage() {
+  userFilters.page++
+  fetchUsers({ force: true })
+}
+
+function prevLogPage() {
+  logFilters.page--
+  fetchLogs({ force: true })
+}
+
+function nextLogPage() {
+  logFilters.page++
+  fetchLogs({ force: true })
+}
 </script>
 
 <template>
@@ -244,25 +264,9 @@ async function confirmDelete() {
       </div>
 
       <div v-if="adminStore.userPagination.total > userFilters.pageSize" class="pager">
-        <button
-          :disabled="userFilters.page <= 1"
-          @click="
-            userFilters.page--
-            fetchUsers({ force: true })
-          "
-        >
-          上一页
-        </button>
+        <button :disabled="userFilters.page <= 1" @click="prevUserPage">上一页</button>
         <span>{{ userFilters.page }} / {{ userTotalPages }}</span>
-        <button
-          :disabled="userFilters.page >= userTotalPages"
-          @click="
-            userFilters.page++
-            fetchUsers({ force: true })
-          "
-        >
-          下一页
-        </button>
+        <button :disabled="userFilters.page >= userTotalPages" @click="nextUserPage">下一页</button>
       </div>
     </section>
 
@@ -297,25 +301,9 @@ async function confirmDelete() {
         </li>
       </ul>
       <div v-if="adminStore.logPagination.total > logFilters.pageSize" class="pager">
-        <button
-          :disabled="logFilters.page <= 1"
-          @click="
-            logFilters.page--
-            fetchLogs({ force: true })
-          "
-        >
-          上一页
-        </button>
+        <button :disabled="logFilters.page <= 1" @click="prevLogPage">上一页</button>
         <span>{{ logFilters.page }} / {{ logTotalPages }}</span>
-        <button
-          :disabled="logFilters.page >= logTotalPages"
-          @click="
-            logFilters.page++
-            fetchLogs({ force: true })
-          "
-        >
-          下一页
-        </button>
+        <button :disabled="logFilters.page >= logTotalPages" @click="nextLogPage">下一页</button>
       </div>
     </section>
 

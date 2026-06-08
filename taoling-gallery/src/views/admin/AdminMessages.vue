@@ -112,6 +112,16 @@ async function confirmBlock() {
 function displayUser(message: AdminMessage) {
   return message.username || message.user?.username || `用户 #${message.user_id}`
 }
+
+function prevMessagePage() {
+  filters.page--
+  fetchMessages({ force: true })
+}
+
+function nextMessagePage() {
+  filters.page++
+  fetchMessages({ force: true })
+}
 </script>
 
 <template>
@@ -220,23 +230,9 @@ function displayUser(message: AdminMessage) {
         </template>
 
         <div v-if="adminStore.messagePagination.total > filters.pageSize" class="pager">
-          <button
-            :disabled="filters.page <= 1"
-            @click="
-              filters.page--
-              fetchMessages({ force: true })
-            "
-          >
-            上一页
-          </button>
+          <button :disabled="filters.page <= 1" @click="prevMessagePage">上一页</button>
           <span>{{ filters.page }} / {{ messageTotalPages }}</span>
-          <button
-            :disabled="filters.page >= messageTotalPages"
-            @click="
-              filters.page++
-              fetchMessages({ force: true })
-            "
-          >
+          <button :disabled="filters.page >= messageTotalPages" @click="nextMessagePage">
             下一页
           </button>
         </div>
