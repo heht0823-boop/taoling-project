@@ -14,11 +14,9 @@ package-lock.json
 logs/
 *.log
 
-# 上传文件（运行时生成）
-src/uploads/*
+# 上传文件（运行时生成，全部忽略仅保留目录结构）
+src/uploads/**
 !src/uploads/.gitkeep
-src/uploads/variants/*
-!src/uploads/variants/.gitkeep
 
 # 测试覆盖率
 coverage/
