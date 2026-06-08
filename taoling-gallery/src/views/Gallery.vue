@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AppIcon from '@/components/icons/AppIcon.vue'
@@ -9,7 +9,7 @@ import { useCategoryStore } from '@/stores/category'
 import { useImageStore } from '@/stores/image'
 import { useTagStore } from '@/stores/tag'
 import { notifyError } from '@/utils/notify'
-import { debounce, throttle } from '@/utils/perform'
+import { debounce } from '@/utils/perform'
 import type { GalleryImage, ImageSort } from '@/types/image'
 
 const router = useRouter()
@@ -22,17 +22,17 @@ const activeCategoryId = ref<number | undefined>()
 const activeTagId = ref<number | undefined>()
 const activeAspectRatio = ref('')
 const activeSort = ref<ImageSort>('latest')
+const currentPage = ref(1)
 const pageReady = ref(false)
-const loadMoreRef = ref<HTMLElement>()
 
-const throttledScroll = throttle(() => {
-  void checkLoadMore()
-}, 300)
 const debouncedSubmitSearch = debounce(() => {
   void submitSearch()
 }, 420)
 
 const loading = computed(() => imageStore.loading || categoryStore.loading || tagStore.loading)
+const totalPages = computed(
+  () => Math.ceil(imageStore.pagination.total / imageStore.query.pageSize) || 1,
+)
 const hotKeywords = computed(() => {
   const tagNames = tagStore.list.slice(0, 3).map((tag) => tag.name)
   return tagNames.length ? tagNames : ['二次元头像', '唯美壁纸', '机甲插画']
@@ -57,11 +57,14 @@ async function loadGalleryData(options: { force?: boolean } = {}) {
     await Promise.all([
       categoryStore.fetchCategories(options),
       tagStore.fetchTags('', options),
-      imageStore.fetchImages({
-        page: 1,
-        pageSize: 12,
-        sort: activeSort.value,
-      }, options),
+      imageStore.fetchImages(
+        {
+          page: 1,
+          pageSize: 12,
+          sort: activeSort.value,
+        },
+        options,
+      ),
     ])
   } catch {
     notifyError('图库数据加载失败，请稍后再试')
@@ -81,6 +84,7 @@ function buildSearchParams() {
 }
 
 async function submitSearch() {
+  currentPage.value = 1
   await imageStore.fetchImages(
     {
       ...buildSearchParams(),
@@ -91,32 +95,21 @@ async function submitSearch() {
   )
 }
 
-async function checkLoadMore() {
-  if (imageStore.loading || !imageStore.hasMore) return
-  await imageStore.loadMoreImages()
+async function goToPage(page: number) {
+  if (page < 1 || page > totalPages.value || imageStore.loading) return
+  currentPage.value = page
+  await imageStore.fetchImages(
+    {
+      ...buildSearchParams(),
+      page,
+      pageSize: imageStore.query.pageSize || 12,
+    },
+    { force: true },
+  )
 }
-
-let loadMoreObserver: IntersectionObserver | undefined
 
 onMounted(() => {
   void loadGalleryData()
-
-  loadMoreObserver = new IntersectionObserver(
-    (entries) => {
-      if (entries[0]?.isIntersecting) {
-        throttledScroll()
-      }
-    },
-    { rootMargin: '200px' },
-  )
-
-  if (loadMoreRef.value) {
-    loadMoreObserver.observe(loadMoreRef.value)
-  }
-})
-
-onUnmounted(() => {
-  loadMoreObserver?.disconnect()
 })
 
 async function useHotKeyword(value: string) {
@@ -137,10 +130,12 @@ async function changeTagFilter(event: Event) {
 
 async function changeSort(sort: ImageSort) {
   activeSort.value = sort
+  currentPage.value = 1
   await imageStore.fetchImages({ ...buildSearchParams(), sort, page: 1 }, { force: true })
 }
 
 async function refreshGallery() {
+  currentPage.value = 1
   await loadGalleryData({ force: true })
 }
 
@@ -283,14 +278,12 @@ function openImage(image: GalleryImage) {
         <button type="button" @click="submitSearch">重新寻找</button>
       </div>
 
-      <div ref="loadMoreRef" class="load-more">
-        <span v-if="imageStore.loading" class="dot-loader">
-          <i />
-          <i />
-          <i />
-        </span>
-        <span v-else-if="imageStore.hasMore">向下滚动加载更多灵感...</span>
-        <span v-else>已经看完当前灵感啦</span>
+      <div v-if="imageStore.pagination.total > imageStore.query.pageSize" class="pager">
+        <button :disabled="currentPage <= 1" @click="goToPage(currentPage - 1)">上一页</button>
+        <span>{{ currentPage }} / {{ totalPages }}</span>
+        <button :disabled="currentPage >= totalPages" @click="goToPage(currentPage + 1)">
+          下一页
+        </button>
       </div>
     </section>
   </section>
@@ -683,51 +676,37 @@ p {
   }
 }
 
-.load-more {
-  display: grid;
-  min-height: 76px;
-  place-items: center;
-  color: $color-text-light;
-  font-size: 14px;
-}
+.pager {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 24px;
 
-.dot-loader {
-  display: inline-flex;
-  gap: 8px;
+  button {
+    min-height: 42px;
+    padding: 0 18px;
+    color: $color-text-white;
+    cursor: pointer;
+    background: $gradient-primary;
+    border: 0;
+    border-radius: $radius-pill;
 
-  i {
-    width: 8px;
-    height: 8px;
-    background: $color-primary-light;
-    border-radius: 50%;
-    animation: dotPulse 1.1s ease-in-out infinite;
-
-    &:nth-child(2) {
-      animation-delay: 0.16s;
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
     }
+  }
 
-    &:nth-child(3) {
-      animation-delay: 0.32s;
-    }
+  span {
+    color: $color-text-light;
+    font-size: 14px;
   }
 }
 
 @keyframes shimmer {
   to {
     background-position: -220% 0;
-  }
-}
-
-@keyframes dotPulse {
-  0%,
-  100% {
-    opacity: 0.36;
-    transform: translateY(0);
-  }
-
-  50% {
-    opacity: 1;
-    transform: translateY(-5px);
   }
 }
 
