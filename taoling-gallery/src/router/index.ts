@@ -169,6 +169,19 @@ const router = createRouter({
       },
     },
     {
+      path: '/weather',
+      name: 'Weather',
+      component: () => import('@/views/Weather.vue'),
+      meta: {
+        title: '桃灵气象站',
+        requiresAuth: false,
+        requiresAdmin: false,
+        keepAlive: false,
+        showHeader: true,
+        showFooter: true,
+      },
+    },
+    {
       path: '/admin',
       component: () => import('@/views/admin/AdminLayout.vue'),
       redirect: '/admin/dashboard',

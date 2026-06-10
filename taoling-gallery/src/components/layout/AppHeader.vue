@@ -16,6 +16,7 @@ const navItems = computed(() => {
   const items = [
     { label: '首页', path: '/home' },
     { label: '图库', path: '/gallery' },
+    { label: '桃灵气象站', path: '/weather' },
     { label: '桃灵助手', path: '/assistant' },
     { label: '我的', path: '/profile' },
   ]
