@@ -23,6 +23,9 @@ router.use('/user', auth, require('./user/messageRoutes'));
 router.use('/ai', auth, require('./user/aiRoutes'));
 router.use('/user/ai', auth, require('./user/aiRoutes'));
 
+// 天气路由（无需登录）
+router.use('/weather', require('./weatherRoutes'));
+
 // 管理员路由（需要管理员权限）
 router.use('/admin', adminOnly, require('./admin/dashboardRoutes'));
 router.use('/admin', adminOnly, require('./admin/imageRoutes'));

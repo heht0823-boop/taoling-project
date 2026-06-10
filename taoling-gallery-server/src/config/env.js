@@ -102,6 +102,9 @@ const env = {
     imageServiceName: process.env.ALI_IMAGE_SERVICE_NAME || process.env.ALI_AVATAR_SERVICE_NAME || 'profilePhotoCheck',
     timeoutMs: Number(process.env.ALI_TIMEOUT_MS || 15000),
   },
+  amap: {
+    key: process.env.AMAP_KEY || '',
+  },
   ai: {
     provider: process.env.AI_PROVIDER || 'dashscope',
     apiKey: process.env.DASHSCOPE_API_KEY || process.env.AI_API_KEY || '',
