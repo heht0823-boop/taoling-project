@@ -8,6 +8,11 @@ export interface LiveWeather {
   province: string
   city: string
   reportTime: string
+  source?: 'amap' | 'fallback'
+  cacheStatus?: 'cache' | 'refreshed' | 'stale' | 'fallback'
+  cachedAt?: string
+  cacheExpiresAt?: string
+  fallbackReason?: string
 }
 
 export interface ForecastDay {
@@ -29,6 +34,11 @@ export interface ForecastWeather {
   province: string
   reportTime: string
   casts: ForecastDay[]
+  source?: 'amap' | 'fallback'
+  cacheStatus?: 'cache' | 'refreshed' | 'stale' | 'fallback'
+  cachedAt?: string
+  cacheExpiresAt?: string
+  fallbackReason?: string
 }
 
 export interface HourlyTrend {

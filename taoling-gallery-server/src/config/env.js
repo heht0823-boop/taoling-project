@@ -104,6 +104,8 @@ const env = {
   },
   amap: {
     key: process.env.AMAP_KEY || '',
+    liveCacheMinutes: Number(process.env.AMAP_LIVE_CACHE_MINUTES || 30),
+    forecastCacheMinutes: Number(process.env.AMAP_FORECAST_CACHE_MINUTES || 360),
   },
   ai: {
     provider: process.env.AI_PROVIDER || 'dashscope',

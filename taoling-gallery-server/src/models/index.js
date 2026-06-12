@@ -19,6 +19,8 @@ const AiMessage = require('./AiMessage');
 const AiMemory = require('./AiMemory');
 const AdminLog = require('./AdminLog');
 const UserMessage = require('./UserMessage');
+const WeatherLiveCache = require('./WeatherLiveCache');
+const WeatherForecastCache = require('./WeatherForecastCache');
 
 // 用户与用户统计关联
 User.hasOne(UserStat, { foreignKey: 'user_id', as: 'stats' });
@@ -78,4 +80,6 @@ module.exports = {
   AiMemory,
   AdminLog,
   UserMessage,
+  WeatherLiveCache,
+  WeatherForecastCache,
 };

@@ -6,13 +6,16 @@
 const { success } = require("../utils/response");
 const weatherService = require("../services/weatherService");
 
+const isForceRefresh = (value) => ["1", "true", "yes"].includes(String(value || "").toLowerCase());
+
 /**
  * GET /api/weather/live
  * 获取指定城市的实况天气
  * @query {string} city - 城市编码（adcode），如 110000
+ * @query {string} [refresh] - 是否强制刷新，true/1 时绕过缓存请求高德并回写数据库
  */
 const getLiveWeather = async (req, res) => {
-  const { city } = req.query;
+  const { city, refresh } = req.query;
 
   if (!city) {
     return res
@@ -24,7 +27,9 @@ const getLiveWeather = async (req, res) => {
       });
   }
 
-  const data = await weatherService.fetchLiveWeather(city);
+  const data = await weatherService.fetchLiveWeather(city, {
+    forceRefresh: isForceRefresh(refresh),
+  });
   success(res, data, "获取实况天气成功");
 };
 
@@ -32,9 +37,10 @@ const getLiveWeather = async (req, res) => {
  * GET /api/weather/live/batch
  * 批量获取多个城市的实况天气（用于城市卡片展示和热力图）
  * @query {string} cities - 城市编码列表，用逗号分隔，如 110000,310000,440100
+ * @query {string} [refresh] - 是否强制刷新，true/1 时绕过缓存请求高德并回写数据库
  */
 const getBatchLiveWeather = async (req, res) => {
-  const { cities } = req.query;
+  const { cities, refresh } = req.query;
 
   if (!cities) {
     return res
@@ -60,7 +66,9 @@ const getBatchLiveWeather = async (req, res) => {
       });
   }
 
-  const data = await weatherService.fetchBatchLiveWeather(cityList);
+  const data = await weatherService.fetchBatchLiveWeather(cityList, {
+    forceRefresh: isForceRefresh(refresh),
+  });
   success(res, data, "批量获取实况天气成功");
 };
 
@@ -68,9 +76,10 @@ const getBatchLiveWeather = async (req, res) => {
  * GET /api/weather/forecast
  * 获取指定城市的天气预报（默认 7 天）
  * @query {string} city - 城市编码（adcode），如 110000
+ * @query {string} [refresh] - 是否强制刷新，true/1 时绕过缓存请求高德并回写数据库
  */
 const getForecastWeather = async (req, res) => {
-  const { city } = req.query;
+  const { city, refresh } = req.query;
 
   if (!city) {
     return res
@@ -82,7 +91,9 @@ const getForecastWeather = async (req, res) => {
       });
   }
 
-  const data = await weatherService.fetchForecastWeather(city);
+  const data = await weatherService.fetchForecastWeather(city, {
+    forceRefresh: isForceRefresh(refresh),
+  });
   success(res, data, "获取天气预报成功");
 };
 
@@ -90,9 +101,10 @@ const getForecastWeather = async (req, res) => {
  * GET /api/weather/24h
  * 获取指定城市的 24 小时温度趋势（基于实况+预报插值模拟）
  * @query {string} city - 城市编码（adcode），如 110000
+ * @query {string} [refresh] - 是否强制刷新插值所需的实况和预报缓存
  */
 const getHourlyTrend = async (req, res) => {
-  const { city } = req.query;
+  const { city, refresh } = req.query;
 
   if (!city) {
     return res
@@ -104,7 +116,9 @@ const getHourlyTrend = async (req, res) => {
       });
   }
 
-  const data = await weatherService.fetchHourlyTrend(city);
+  const data = await weatherService.fetchHourlyTrend(city, {
+    forceRefresh: isForceRefresh(refresh),
+  });
   success(res, data, "获取 24 小时趋势成功");
 };
 

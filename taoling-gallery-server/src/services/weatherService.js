@@ -6,6 +6,7 @@
 
 const axios = require("axios");
 const env = require("../config/env");
+const { WeatherLiveCache, WeatherForecastCache } = require("../models");
 
 const AMAP_BASE_URL = "https://restapi.amap.com/v3/weather/weatherInfo";
 const FALLBACK_WEATHERS = ["晴", "多云", "阴", "小雨", "阵雨"];
@@ -140,12 +141,166 @@ const normalizeForecastDays = (forecast, city) => {
   };
 };
 
+const addMinutes = (date, minutes) => new Date(date.getTime() + minutes * 60 * 1000);
+
+const formatDateTime = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = (item) => String(item).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+const parseJsonValue = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value !== "string") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return fallback;
+  }
+};
+
+const logWeatherCacheError = (action, error) => {
+  const message = error?.parent?.sqlMessage || error?.original?.sqlMessage || error?.message || "未知错误";
+  console.warn(`[weather-cache] ${action} 失败：${message}`);
+};
+
+const isCacheFresh = (record, ttlMinutes) => {
+  if (!record?.fetched_at) return false;
+  return addMinutes(new Date(record.fetched_at), ttlMinutes).getTime() > Date.now();
+};
+
+const stripInternalWeatherFields = (data) => {
+  if (!data) return data;
+  const { rawPayload, ...publicData } = data;
+  return publicData;
+};
+
+const getCacheMeta = (record, ttlMinutes, cacheStatus) => {
+  const fetchedAt = record?.fetched_at ? new Date(record.fetched_at) : null;
+
+  return {
+    cacheStatus,
+    cachedAt: formatDateTime(fetchedAt),
+    cacheExpiresAt: fetchedAt ? formatDateTime(addMinutes(fetchedAt, ttlMinutes)) : "",
+  };
+};
+
+const buildLiveWeatherFromCache = (record, cacheStatus, extra = {}) => ({
+  temperature: record.temperature,
+  weather: record.weather,
+  winddirection: record.winddirection,
+  windpower: record.windpower,
+  humidity: record.humidity,
+  adcode: record.adcode,
+  province: record.province,
+  city: record.city,
+  reportTime: formatDateTime(record.report_time),
+  source: record.source,
+  ...getCacheMeta(record, env.amap.liveCacheMinutes, cacheStatus),
+  ...extra,
+});
+
+const buildForecastFromCache = (record, cacheStatus, extra = {}) => ({
+  city: record.city,
+  adcode: record.adcode,
+  province: record.province,
+  reportTime: formatDateTime(record.report_time),
+  casts: parseJsonValue(record.casts, []),
+  source: record.source,
+  ...getCacheMeta(record, env.amap.forecastCacheMinutes, cacheStatus),
+  ...extra,
+});
+
+const findLiveCache = async (adcode) => {
+  try {
+    return await WeatherLiveCache.findOne({ where: { adcode } });
+  } catch (error) {
+    logWeatherCacheError(`读取实况缓存 ${adcode}`, error);
+    return null;
+  }
+};
+
+const findForecastCache = async (adcode) => {
+  try {
+    return await WeatherForecastCache.findOne({ where: { adcode } });
+  } catch (error) {
+    logWeatherCacheError(`读取预报缓存 ${adcode}`, error);
+    return null;
+  }
+};
+
+const upsertLiveWeatherCache = async (weather) => {
+  if (weather.source !== "amap") return null;
+
+  const payload = {
+    adcode: weather.adcode,
+    province: weather.province,
+    city: weather.city,
+    weather: weather.weather,
+    temperature: weather.temperature,
+    winddirection: weather.winddirection,
+    windpower: weather.windpower,
+    humidity: weather.humidity,
+    report_time: weather.reportTime || null,
+    source: weather.source,
+    raw_payload: weather.rawPayload || null,
+    fetched_at: new Date(),
+  };
+
+  try {
+    const cache = await WeatherLiveCache.findOne({ where: { adcode: weather.adcode } });
+    if (cache) {
+      await cache.update(payload);
+      return cache.reload();
+    }
+
+    return await WeatherLiveCache.create(payload);
+  } catch (error) {
+    logWeatherCacheError(`写入实况缓存 ${weather.adcode}`, error);
+    return null;
+  }
+};
+
+const upsertForecastCache = async (forecast) => {
+  if (forecast.source !== "amap") return null;
+
+  const payload = {
+    adcode: forecast.adcode,
+    province: forecast.province,
+    city: forecast.city,
+    report_time: forecast.reportTime || null,
+    casts: forecast.casts,
+    source: forecast.source,
+    raw_payload: forecast.rawPayload || null,
+    fetched_at: new Date(),
+  };
+
+  try {
+    const cache = await WeatherForecastCache.findOne({ where: { adcode: forecast.adcode } });
+    if (cache) {
+      await cache.update(payload);
+      return cache.reload();
+    }
+
+    return await WeatherForecastCache.create(payload);
+  } catch (error) {
+    logWeatherCacheError(`写入预报缓存 ${forecast.adcode}`, error);
+    return null;
+  }
+};
+
 /**
  * 获取实况天气
  * @param {string} city - 城市编码（adcode，如 110000）
  * @returns {Promise<Object>} 实况天气数据
  */
-const fetchLiveWeather = async (city) => {
+const fetchLiveWeatherFromAmap = async (city) => {
   const amapKey = getAmapKey();
   if (!amapKey) {
     return getFallbackWeather(city, "未配置 AMAP_KEY，已启用本地兜底数据");
@@ -183,10 +338,43 @@ const fetchLiveWeather = async (city) => {
       city: data.lives[0].city,
       reportTime: data.lives[0].reporttime,
       source: "amap",
+      rawPayload: data,
     };
   } catch (error) {
     return getFallbackWeather(city, getAmapFailureReason(error));
   }
+};
+
+const fetchLiveWeather = async (city, options = {}) => {
+  const adcode = String(city);
+  const forceRefresh = Boolean(options.forceRefresh);
+  const cache = await findLiveCache(adcode);
+
+  if (!forceRefresh && isCacheFresh(cache, env.amap.liveCacheMinutes)) {
+    return buildLiveWeatherFromCache(cache, "cache");
+  }
+
+  const freshWeather = await fetchLiveWeatherFromAmap(adcode);
+
+  if (freshWeather.source !== "amap") {
+    if (cache) {
+      return buildLiveWeatherFromCache(cache, "stale", {
+        fallbackReason: freshWeather.fallbackReason,
+      });
+    }
+
+    return {
+      ...stripInternalWeatherFields(freshWeather),
+      cacheStatus: "fallback",
+      cachedAt: "",
+      cacheExpiresAt: "",
+    };
+  }
+
+  const updatedCache = await upsertLiveWeatherCache(freshWeather);
+  return updatedCache
+    ? buildLiveWeatherFromCache(updatedCache, "refreshed")
+    : { ...stripInternalWeatherFields(freshWeather), cacheStatus: "refreshed" };
 };
 
 /**
@@ -194,8 +382,27 @@ const fetchLiveWeather = async (city) => {
  * @param {string[]} cities - 城市编码数组
  * @returns {Promise<Object[]>} 多个城市的实况天气数据列表
  */
-const fetchBatchLiveWeather = async (cities) => {
-  return Promise.all(cities.map((city) => fetchLiveWeather(city)));
+const fetchBatchLiveWeather = async (cities, options = {}) => {
+  const results = [];
+  const batchSize = 6;
+
+  for (let index = 0; index < cities.length; index += batchSize) {
+    const cityBatch = cities.slice(index, index + batchSize);
+    const settled = await Promise.allSettled(cityBatch.map((city) => fetchLiveWeather(city, options)));
+
+    settled.forEach((result, cityIndex) => {
+      if (result.status === "fulfilled") {
+        results.push(result.value);
+        return;
+      }
+
+      const city = cityBatch[cityIndex];
+      console.warn(`[weather-cache] 批量实况 ${city} 获取失败：${result.reason?.message || "未知错误"}`);
+      results.push(getFallbackWeather(city, "该城市天气获取失败，已启用本地兜底数据"));
+    });
+  }
+
+  return results;
 };
 
 /**
@@ -203,7 +410,7 @@ const fetchBatchLiveWeather = async (cities) => {
  * @param {string} city - 城市编码（adcode，如 110000）
  * @returns {Promise<Object>} 预报天气数据
  */
-const fetchForecastWeather = async (city) => {
+const fetchForecastWeatherFromAmap = async (city) => {
   const amapKey = getAmapKey();
   if (!amapKey) {
     return getFallbackForecast(city, "未配置 AMAP_KEY，已启用本地兜底数据");
@@ -251,6 +458,7 @@ const fetchForecastWeather = async (city) => {
           nightpower: cast.nightpower,
         })),
         source: "amap",
+        rawPayload: data,
       },
       city,
     );
@@ -259,17 +467,49 @@ const fetchForecastWeather = async (city) => {
   }
 };
 
+const fetchForecastWeather = async (city, options = {}) => {
+  const adcode = String(city);
+  const forceRefresh = Boolean(options.forceRefresh);
+  const cache = await findForecastCache(adcode);
+
+  if (!forceRefresh && isCacheFresh(cache, env.amap.forecastCacheMinutes)) {
+    return buildForecastFromCache(cache, "cache");
+  }
+
+  const freshForecast = await fetchForecastWeatherFromAmap(adcode);
+
+  if (freshForecast.source !== "amap") {
+    if (cache) {
+      return buildForecastFromCache(cache, "stale", {
+        fallbackReason: freshForecast.fallbackReason,
+      });
+    }
+
+    return {
+      ...stripInternalWeatherFields(freshForecast),
+      cacheStatus: "fallback",
+      cachedAt: "",
+      cacheExpiresAt: "",
+    };
+  }
+
+  const updatedCache = await upsertForecastCache(freshForecast);
+  return updatedCache
+    ? buildForecastFromCache(updatedCache, "refreshed")
+    : { ...stripInternalWeatherFields(freshForecast), cacheStatus: "refreshed" };
+};
+
 /**
  * 模拟生成 24 小时逐小时温度趋势
  * 高德天气 API 不提供原生小时级数据，此接口基于当日实况温度 + 预报早晚温度做插值模拟
  * @param {string} city - 城市编码
  * @returns {Promise<Object[]>} 24 小时趋势数据
  */
-const fetchHourlyTrend = async (city) => {
+const fetchHourlyTrend = async (city, options = {}) => {
   // 同时获取实况和预报数据作为插值基础
   const [liveResult, forecastResult] = await Promise.allSettled([
-    fetchLiveWeather(city),
-    fetchForecastWeather(city),
+    fetchLiveWeather(city, options),
+    fetchForecastWeather(city, options),
   ]);
 
   // 默认温度基准

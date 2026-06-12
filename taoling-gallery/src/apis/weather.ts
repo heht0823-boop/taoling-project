@@ -8,35 +8,43 @@ import type {
   LifeTips,
 } from '@/types/weather'
 
-export function getLiveWeatherApi(city: string) {
+export interface WeatherRequestOptions {
+  refresh?: boolean
+}
+
+function withRefreshParam(city: string, options: WeatherRequestOptions = {}) {
+  return options.refresh ? { city, refresh: 'true' } : { city }
+}
+
+export function getLiveWeatherApi(city: string, options: WeatherRequestOptions = {}) {
   return requestData<LiveWeather>({
     url: '/weather/live',
     method: 'GET',
-    params: { city },
+    params: withRefreshParam(city, options),
   })
 }
 
-export function getBatchLiveWeatherApi(cities: string[]) {
+export function getBatchLiveWeatherApi(cities: string[], options: WeatherRequestOptions = {}) {
   return requestData<LiveWeather[]>({
     url: '/weather/live/batch',
     method: 'GET',
-    params: { cities: cities.join(',') },
+    params: options.refresh ? { cities: cities.join(','), refresh: 'true' } : { cities: cities.join(',') },
   })
 }
 
-export function getForecastWeatherApi(city: string) {
+export function getForecastWeatherApi(city: string, options: WeatherRequestOptions = {}) {
   return requestData<ForecastWeather>({
     url: '/weather/forecast',
     method: 'GET',
-    params: { city },
+    params: withRefreshParam(city, options),
   })
 }
 
-export function getHourlyTrendApi(city: string) {
+export function getHourlyTrendApi(city: string, options: WeatherRequestOptions = {}) {
   return requestData<HourlyTrend[]>({
     url: '/weather/24h',
     method: 'GET',
-    params: { city },
+    params: withRefreshParam(city, options),
   })
 }
 

@@ -204,6 +204,17 @@ const warmestCity = computed(() =>
 const coolestCity = computed(() =>
   [...batchWeatherWithCity.value].sort((a, b) => toNumber(a.temperature) - toNumber(b.temperature))[0],
 )
+const cacheStatusLabel = computed(() => {
+  const status = selectedLiveWeather.value?.cacheStatus
+  const labels: Record<string, string> = {
+    cache: '数据库缓存',
+    refreshed: '已刷新',
+    stale: '旧缓存兜底',
+    fallback: '本地兜底',
+  }
+
+  return status ? labels[status] || status : '实时接口'
+})
 
 function toNumber(value: string | number | undefined | null) {
   const parsed = Number(value)
@@ -249,13 +260,15 @@ function selectCity(adcode: string) {
   selectedAdcode.value = adcode
 }
 
-function refreshWeather() {
-  weatherStore.fetchCityWeatherPanel(selectedAdcode.value)
-  weatherStore.fetchBatchWeather(weatherStore.cityList.map((city) => city.adcode))
+async function refreshWeather() {
+  await Promise.allSettled([
+    weatherStore.fetchCityWeatherPanel(selectedAdcode.value, { refresh: true }),
+    weatherStore.fetchBatchWeather(weatherStore.cityList.map((city) => city.adcode), { refresh: true }),
+  ])
 }
 
 watch(selectedAdcode, (adcode) => {
-  weatherStore.fetchCityWeatherPanel(adcode)
+  weatherStore.fetchCityWeatherPanel(adcode).catch(() => undefined)
 })
 
 watch(selectedRegion, () => {
@@ -265,7 +278,10 @@ watch(selectedRegion, () => {
 })
 
 onMounted(() => {
-  refreshWeather()
+  Promise.allSettled([
+    weatherStore.fetchCityWeatherPanel(selectedAdcode.value),
+    weatherStore.fetchBatchWeather(weatherStore.cityList.map((city) => city.adcode)),
+  ])
 })
 </script>
 
@@ -283,9 +299,9 @@ onMounted(() => {
             以真实接口返回的实况、预报、趋势、预警和生活贴士为基础，陪你看见全国城市的晴雨温度。
           </p>
           <div class="hero-actions">
-            <button class="primary-action" type="button" @click="refreshWeather">
+            <button class="primary-action" type="button" :disabled="isBusy" @click="refreshWeather">
               <SvgIcon name="spark" />
-              刷新天气
+              {{ isBusy ? '刷新中' : '刷新天气' }}
             </button>
             <a class="ghost-action" href="#weather-trend">查看趋势</a>
           </div>
@@ -367,7 +383,18 @@ onMounted(() => {
               <dt>发布时间</dt>
               <dd>{{ selectedLiveWeather.reportTime }}</dd>
             </div>
+            <div>
+              <dt>数据状态</dt>
+              <dd>{{ cacheStatusLabel }}</dd>
+            </div>
+            <div v-if="selectedLiveWeather.cachedAt">
+              <dt>缓存时间</dt>
+              <dd>{{ selectedLiveWeather.cachedAt }}</dd>
+            </div>
           </dl>
+          <p v-if="selectedLiveWeather?.fallbackReason" class="cache-note">
+            {{ selectedLiveWeather.fallbackReason }}
+          </p>
         </article>
 
         <article class="tips-card panel-card">
@@ -644,6 +671,11 @@ onMounted(() => {
     width: 17px;
     height: 17px;
   }
+
+  &:disabled {
+    cursor: wait;
+    opacity: 0.72;
+  }
 }
 
 .ghost-action {
@@ -836,6 +868,17 @@ onMounted(() => {
     color: $color-text-main;
     font-weight: 600;
   }
+}
+
+.cache-note {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  color: #9a5670;
+  font-size: 13px;
+  line-height: 1.6;
+  background: rgba(255, 242, 247, 0.68);
+  border: 1px solid rgba(244, 139, 181, 0.2);
+  border-radius: 16px;
 }
 
 .empty-state {

@@ -19,6 +19,10 @@ import type {
 } from '@/types/weather'
 import { cityList } from '@/types/weather'
 
+interface WeatherFetchOptions {
+  refresh?: boolean
+}
+
 export const useWeatherStore = defineStore('weather', () => {
   const currentCity = ref<CityInfo>(cityList[0] as CityInfo)
   const liveWeather = ref<LiveWeather | null>(null)
@@ -32,11 +36,11 @@ export const useWeatherStore = defineStore('weather', () => {
   const error = ref('')
   const lastUpdatedAt = ref('')
 
-  async function fetchLiveWeather(city: string) {
+  async function fetchLiveWeather(city: string, options: WeatherFetchOptions = {}) {
     loading.value = true
     error.value = ''
     try {
-      const result = await getLiveWeatherApi(city)
+      const result = await getLiveWeatherApi(city, options)
       liveWeather.value = result
       lastUpdatedAt.value = result.reportTime || new Date().toLocaleString()
       return result
@@ -48,11 +52,11 @@ export const useWeatherStore = defineStore('weather', () => {
     }
   }
 
-  async function fetchBatchWeather(cities: string[]) {
+  async function fetchBatchWeather(cities: string[], options: WeatherFetchOptions = {}) {
     batchLoading.value = true
     error.value = ''
     try {
-      const result = await getBatchLiveWeatherApi(cities)
+      const result = await getBatchLiveWeatherApi(cities, options)
       batchWeather.value = result
       return result
     } catch (e) {
@@ -63,11 +67,11 @@ export const useWeatherStore = defineStore('weather', () => {
     }
   }
 
-  async function fetchForecast(city: string) {
+  async function fetchForecast(city: string, options: WeatherFetchOptions = {}) {
     loading.value = true
     error.value = ''
     try {
-      const result = await getForecastWeatherApi(city)
+      const result = await getForecastWeatherApi(city, options)
       forecast.value = result
       return result
     } catch (e) {
@@ -78,11 +82,11 @@ export const useWeatherStore = defineStore('weather', () => {
     }
   }
 
-  async function fetchHourlyTrend(city: string) {
+  async function fetchHourlyTrend(city: string, options: WeatherFetchOptions = {}) {
     loading.value = true
     error.value = ''
     try {
-      const result = await getHourlyTrendApi(city)
+      const result = await getHourlyTrendApi(city, options)
       hourlyTrend.value = result
       return result
     } catch (e) {
@@ -119,7 +123,7 @@ export const useWeatherStore = defineStore('weather', () => {
     currentCity.value = city
   }
 
-  async function fetchCityWeatherPanel(city: string) {
+  async function fetchCityWeatherPanel(city: string, options: WeatherFetchOptions = {}) {
     const foundCity = cityList.find((item) => item.adcode === city)
     if (foundCity) {
       setCurrentCity(foundCity)
@@ -128,13 +132,30 @@ export const useWeatherStore = defineStore('weather', () => {
     loading.value = true
     error.value = ''
 
-    const [liveResult] = await Promise.allSettled([
-      fetchLiveWeather(city),
-      fetchForecast(city),
-      fetchHourlyTrend(city),
-      fetchWarnings(city),
-      fetchLifeTips(city),
-    ])
+    let liveResult: PromiseSettledResult<LiveWeather>
+
+    if (options.refresh) {
+      const [refreshedLiveResult] = await Promise.allSettled([
+        fetchLiveWeather(city, options),
+        fetchForecast(city, options),
+      ])
+      liveResult = refreshedLiveResult
+
+      await Promise.allSettled([
+        fetchHourlyTrend(city),
+        fetchWarnings(city),
+        fetchLifeTips(city),
+      ])
+    } else {
+      const [cachedLiveResult] = await Promise.allSettled([
+        fetchLiveWeather(city),
+        fetchForecast(city),
+        fetchHourlyTrend(city),
+        fetchWarnings(city),
+        fetchLifeTips(city),
+      ])
+      liveResult = cachedLiveResult
+    }
 
     loading.value = false
 
