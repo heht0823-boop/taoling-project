@@ -12,6 +12,16 @@ taoling-gallery-server/.env
 taoling-gallery-server/.env.local
 taoling-gallery-server/.env.*.local
 taoling-gallery-server/logs/
+taoling-gallery-server/uploads/**
+!taoling-gallery-server/uploads/.gitkeep
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
 
 # ======================
 # 日志
@@ -39,3 +49,6 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Local verification artifacts
+output/

@@ -3,25 +3,25 @@
  * 统一管理 JWT Cookie 的读写和过期时间换算
  */
 
-const env = require('../config/env');
+const env = require("../config/env");
 
 const getCookieOptions = () => ({
   httpOnly: true,
   secure: env.cookie.secure,
   sameSite: env.cookie.sameSite,
   maxAge: env.cookie.maxAgeMs,
-  path: '/',
+  path: "/",
   ...(env.cookie.domain ? { domain: env.cookie.domain } : {}),
 });
 
 const getClearCookieOptions = () => {
-  const { maxAge, ...options } = getCookieOptions();
+  const { _maxAge, ...options } = getCookieOptions();
   return options;
 };
 
-const parseCookieHeader = (header = '') =>
-  header.split(';').reduce((cookies, part) => {
-    const index = part.indexOf('=');
+const parseCookieHeader = (header = "") =>
+  header.split(";").reduce((cookies, part) => {
+    const index = part.indexOf("=");
     if (index === -1) return cookies;
 
     const key = part.slice(0, index).trim();
@@ -31,7 +31,7 @@ const parseCookieHeader = (header = '') =>
   }, {});
 
 const readAuthCookie = (req) => {
-  const cookies = parseCookieHeader(req.headers.cookie || '');
+  const cookies = parseCookieHeader(req.headers.cookie || "");
   return cookies[env.cookie.name] || null;
 };
 
