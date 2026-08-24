@@ -1,6 +1,6 @@
 {
   "name": "taoling-gallery",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -48,9 +48,15 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
-  "description": "This template should help get you started developing with Vue 3 in Vite.",
+  "description": "桃灵图库 Vue 3 + TypeScript 前端，包含图库、用户中心、天气、SSE 助手和管理后台。",
   "main": "index.js",
-  "keywords": [],
+  "keywords": [
+    "vue3",
+    "typescript",
+    "pinia",
+    "image-gallery",
+    "sse"
+  ],
   "author": "",
   "license": "ISC"
 }

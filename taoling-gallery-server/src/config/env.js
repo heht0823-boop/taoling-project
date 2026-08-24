@@ -11,6 +11,19 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const DEFAULT_AUTH_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * 敏感配置不允许回退到仓库内默认值，避免示例凭据进入公开环境。
+ * @param {string} name 环境变量名
+ * @returns {string} 已校验的环境变量值
+ */
+const requireEnv = (name) => {
+  const value = String(process.env[name] || '').trim();
+  if (!value) {
+    throw new Error(`缺少必需环境变量：${name}`);
+  }
+  return value;
+};
+
 const parseAuthCookieMaxAgeMs = (value) => {
   if (typeof value === 'number' && Number.isFinite(value)) return value * 1000;
   if (!value || typeof value !== 'string') return DEFAULT_AUTH_COOKIE_MAX_AGE_MS;
@@ -58,10 +71,10 @@ const env = {
     port: Number(process.env.DB_PORT || 3306),
     database: process.env.DB_NAME || 'taoling_gallery',
     username: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '135799510Ht',
+    password: requireEnv('DB_PASSWORD'),
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'taoling_gallery_dev_secret',
+    secret: requireEnv('JWT_SECRET'),
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   cookie: {
@@ -78,7 +91,7 @@ const env = {
   admin: {
     username: process.env.ADMIN_USERNAME || 'hetao',
     email: process.env.ADMIN_EMAIL || 'admin@taoling.local',
-    password: process.env.ADMIN_PASSWORD || '135799510Ht',
+    password: requireEnv('ADMIN_PASSWORD'),
   },
   upload: {
     maxSizeMb: Number(process.env.UPLOAD_MAX_SIZE_MB || 20),
